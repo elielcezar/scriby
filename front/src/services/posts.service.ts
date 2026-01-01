@@ -147,6 +147,18 @@ export const postsService = {
       throw new Error(handleApiError(error));
     }
   },
+
+  /**
+   * Gerar post a partir de prompt (link + instruções)
+   */
+  async generateFromPrompt(prompt: string): Promise<Post> {
+    try {
+      const response = await apiClient.post<{ post: Post; postId: number; message: string }>('/posts/gerar-de-prompt', { prompt });
+      return response.data.post;
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
 };
 
 // Alias para compatibilidade temporária

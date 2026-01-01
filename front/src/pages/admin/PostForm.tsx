@@ -17,9 +17,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, X, Upload } from 'lucide-react';
+import { ArrowLeft, Loader2, X, Upload, Sparkles } from 'lucide-react';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Checkbox } from '@/components/ui/checkbox';
 import { TagInput } from '@/components/ui/tag-input';
@@ -32,23 +31,29 @@ export default function PostForm() {
   const queryClient = useQueryClient();
   const isEdit = !!id;
 
-  // Estado do formulário
-  const [formData, setFormData] = useState({
+  // Estado do formulário (single language)
+  const [formData, setFormData] = useState<PostFormData>({
     titulo: '',
     chamada: '',
     conteudo: '',
     urlAmigavel: '',
-    status: 'RASCUNHO' as 'RASCUNHO' | 'PUBLICADO',
+    status: 'RASCUNHO',
     destaque: false,
-    dataPublicacao: new Date().toISOString().slice(0, 16),
-    imagens: [] as File[],
-    oldImages: [] as string[],
+    dataPublicacao: '',
+    categorias: [],
+    tags: [],
+    imagens: [],
+    oldImages: [],
   });
 
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [selectedCategorias, setSelectedCategorias] = useState<number[]>([]);
   const [tagNames, setTagNames] = useState<string[]>([]);
   const [tagSearchQuery, setTagSearchQuery] = useState('');
+
+  // Estado para criação via prompt
+  const [prompt, setPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Buscar categorias
   const { data: categorias } = useQuery({
@@ -63,26 +68,20 @@ export default function PostForm() {
     enabled: tagSearchQuery.length > 0,
   });
 
-  // Buscar todas as tags (para carregar tags existentes do post)
-  const { data: allTags } = useQuery({
-    queryKey: ['tags'],
-    queryFn: () => tagsService.getAll(),
-  });
-
   // Buscar post se for edição
-  const { data: post, refetch: refetchPost } = useQuery({
+  const { data: post, isLoading: isLoadingPost } = useQuery({
     queryKey: ['post', id],
     queryFn: () => postsService.getById(Number(id)),
     enabled: isEdit && !!id,
   });
 
-  // Carregar dados do post quando for edição
+  // Preencher formulário quando post for carregado
   useEffect(() => {
     if (post && isEdit) {
       const categoriasIds = post.categorias?.map(c => c.id) || [];
-      const tagNamesFromPost = post.tags?.map(t => t.nome).filter(Boolean) || [];
+      const tagNamesFromPost = post.tags?.map(t => t.nome) || [];
 
-      // Converter data para formato datetime-local
+      // Converter data para formato datetime-local (YYYY-MM-DDTHH:mm)
       let dataFormatada = '';
       if (post.dataPublicacao) {
         const date = new Date(post.dataPublicacao);
@@ -94,9 +93,11 @@ export default function PostForm() {
         chamada: post.chamada || '',
         conteudo: post.conteudo || '',
         urlAmigavel: post.urlAmigavel || '',
-        status: post.status,
-        destaque: post.destaque,
+        status: post.status || 'RASCUNHO',
+        destaque: post.destaque || false,
         dataPublicacao: dataFormatada,
+        categorias: categoriasIds,
+        tags: [],
         imagens: [],
         oldImages: post.imagens || [],
       });
@@ -113,9 +114,9 @@ export default function PostForm() {
     if (pautaData && !isEdit) {
       setFormData(prev => ({
         ...prev,
-        titulo: pautaData.titulo || '',
-        chamada: pautaData.chamada || '',
-        conteudo: pautaData.conteudo || '',
+          titulo: pautaData.titulo || '',
+          chamada: pautaData.chamada || '',
+          conteudo: pautaData.conteudo || '',
         urlAmigavel: generateSlug(pautaData.titulo || ''),
       }));
 
@@ -126,7 +127,28 @@ export default function PostForm() {
     }
   }, [location.state, isEdit, toast]);
 
-  // Mutation para criar
+  // Mutation para criar via prompt
+  const generateMutation = useMutation({
+    mutationFn: (prompt: string) => postsService.generateFromPrompt(prompt),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      toast({
+        title: 'Post criado com sucesso!',
+        description: 'O post foi gerado e salvo como rascunho. Você pode editá-lo na lista de posts.',
+      });
+      navigate('/admin/posts');
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao gerar post',
+        description: error.message || 'Ocorreu um erro ao processar o prompt. Tente novamente.',
+      });
+      setIsGenerating(false);
+    },
+  });
+
+  // Mutation para criar post manualmente
   const createMutation = useMutation({
     mutationFn: (data: PostFormData) => postsService.create(data),
     onSuccess: () => {
@@ -148,8 +170,7 @@ export default function PostForm() {
 
   // Mutation para atualizar
   const updateMutation = useMutation({
-    mutationFn: (data: Partial<PostFormData>) =>
-      postsService.update(Number(id), data),
+    mutationFn: (data: Partial<PostFormData>) => postsService.update(Number(id), data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       queryClient.invalidateQueries({ queryKey: ['post', id] });
@@ -157,7 +178,6 @@ export default function PostForm() {
         title: 'Post atualizado',
         description: 'O post foi atualizado com sucesso.',
       });
-      refetchPost();
     },
     onError: (error: Error) => {
       toast({
@@ -173,70 +193,73 @@ export default function PostForm() {
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') // Remove accents
-      .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphens
-      .replace(/(^-|-$)/g, ''); // Remove leading/trailing hyphens
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+      .trim();
   };
 
-  const handleTituloChange = (value: string) => {
+  const handleTituloChange = (novoTitulo: string) => {
     setFormData(prev => ({
       ...prev,
-      titulo: value,
-      // Auto-gerar slug se estiver vazio ou se o slug atual é igual ao slug gerado do título anterior
-      urlAmigavel: prev.urlAmigavel === generateSlug(prev.titulo) || !prev.urlAmigavel
-        ? generateSlug(value)
-        : prev.urlAmigavel
+      titulo: novoTitulo,
+      urlAmigavel: generateSlug(novoTitulo),
     }));
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      setFormData(prev => ({
-        ...prev,
-        imagens: [file]
-      }));
+  // Handler para criação via prompt
+  const handlePromptSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-      // Preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewImages([reader.result as string]);
-      };
-      reader.readAsDataURL(file);
+    if (!prompt.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Prompt vazio',
+        description: 'Digite um link e/ou instruções para gerar o post.',
+      });
+      return;
     }
+
+    setIsGenerating(true);
+    generateMutation.mutate(prompt.trim());
   };
 
-  const handleRemoveImage = () => {
-    setFormData(prev => ({
-      ...prev,
-      imagens: [],
-      oldImages: []
-    }));
-    setPreviewImages([]);
-  };
-
-  const toggleCategoria = (categoriaId: number) => {
-    setSelectedCategorias(prev =>
-      prev.includes(categoriaId)
-        ? prev.filter(id => id !== categoriaId)
-        : [...prev, categoriaId]
-    );
-  };
-
-  // Handler para busca de tags (autocomplete)
-  const handleTagSearch = (query: string) => {
-    setTagSearchQuery(query);
-  };
-
+  // Handler para edição/criação manual
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validações básicas
-    if (!formData.titulo || !formData.chamada || !formData.conteudo || !formData.urlAmigavel) {
+    if (!formData.titulo.trim()) {
       toast({
         variant: 'destructive',
-        title: 'Campos obrigatórios faltando',
-        description: 'Preencha título, chamada, conteúdo e URL amigável.',
+        title: 'Campo obrigatório',
+        description: 'O título é obrigatório.',
+      });
+      return;
+    }
+
+    if (!formData.chamada.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Campo obrigatório',
+        description: 'A chamada é obrigatória.',
+      });
+      return;
+    }
+
+    if (!formData.conteudo.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Campo obrigatório',
+        description: 'O conteúdo é obrigatório.',
+      });
+      return;
+    }
+
+    if (!formData.urlAmigavel.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Campo obrigatório',
+        description: 'A URL amigável é obrigatória.',
       });
       return;
     }
@@ -246,8 +269,10 @@ export default function PostForm() {
 
       const dataToSubmit: PostFormData = {
         ...formData,
-        categorias: selectedCategorias || [],
-        tags: tagIds || [],
+        categorias: selectedCategorias.length > 0 ? selectedCategorias : formData.categorias || [],
+        tags: tagIds,
+        imagens: formData.imagens,
+        oldImages: previewImages,
       };
 
       if (isEdit) {
@@ -257,18 +282,192 @@ export default function PostForm() {
       }
     } catch (error) {
       console.error('Erro ao salvar post:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar',
+        description: error instanceof Error ? error.message : 'Erro desconhecido.',
+      });
     }
   };
 
-  const handleChange = (field: keyof typeof formData, value: any) => {
+  const handleChange = (field: keyof PostFormData, value: any) => {
     setFormData(prev => ({
       ...prev,
       [field]: value,
     }));
   };
 
+  // Handler para upload de imagem
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+
+    // Validar tamanho do arquivo (10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        variant: 'destructive',
+        title: 'Arquivo muito grande',
+        description: 'A imagem não pode exceder 10MB.',
+      });
+      e.target.value = '';
+      return;
+    }
+
+    // Validar tipo de arquivo
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        variant: 'destructive',
+        title: 'Tipo de arquivo inválido',
+        description: 'Apenas JPEG, JPG, PNG e WEBP são permitidos.',
+      });
+      e.target.value = '';
+      return;
+    }
+
+    // Adicionar nova imagem
+    setFormData(prev => ({
+      ...prev,
+      imagens: [file],
+      oldImages: [], // Substituir imagens antigas
+    }));
+
+    // Criar preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewImages([reader.result as string]);
+    };
+    reader.readAsDataURL(file);
+
+    e.target.value = '';
+  };
+
+  // Remover imagem
+  const handleRemoveImage = () => {
+    setFormData(prev => ({
+      ...prev,
+      imagens: [],
+      oldImages: [],
+    }));
+    setPreviewImages([]);
+  };
+
+  // Toggle categoria
+  const toggleCategoria = (categoriaId: number) => {
+    setSelectedCategorias(prev => {
+      const updated = prev.includes(categoriaId)
+        ? prev.filter(id => id !== categoriaId)
+        : [...prev, categoriaId];
+      // Sincronizar com formData
+      setFormData(formData => ({
+        ...formData,
+        categorias: updated,
+      }));
+      return updated;
+    });
+  };
+
+  // Handler para busca de tags (autocomplete)
+  const handleTagSearch = (query: string) => {
+    setTagSearchQuery(query);
+  };
+
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
+  // Tela de loading durante processamento (criação via prompt)
+  if (!isEdit && isGenerating) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
+          <div className="space-y-2">
+            <h2 className="text-2xl font-semibold">Criando post...</h2>
+            <p className="text-muted-foreground">
+              Processando seu prompt e gerando conteúdo com IA. Isso pode levar alguns segundos.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading ao buscar post para edição
+  if (isEdit && isLoadingPost) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Se for criação, mostrar interface de prompt
+  if (!isEdit) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/admin/posts')}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold tracking-tight">Novo Post</h1>
+            <p className="text-muted-foreground">
+              Cole um link e/ou escreva instruções para gerar o post automaticamente
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handlePromptSubmit}>
+          <Card className="max-w-4xl mx-auto">
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Exemplo: https://example.com/noticia - Escreva sobre o impacto na indústria da música eletrônica, focando nas tendências de 2025..."
+                    className="min-h-[300px] text-base resize-none"
+                    disabled={isGenerating}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Você pode colar apenas um link, apenas instruções, ou ambos. A IA irá processar e criar o post automaticamente.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate('/admin/posts')}
+                    disabled={isGenerating}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={isGenerating || !prompt.trim()}>
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Gerando...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Gerar Post
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </form>
+      </div>
+    );
+  }
+
+  // Se for edição, mostrar formulário completo
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -276,11 +475,9 @@ export default function PostForm() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-3xl font-bold tracking-tight">
-            {isEdit ? 'Editar Post' : 'Novo Post'}
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight">Editar Post</h1>
           <p className="text-muted-foreground">
-            {isEdit ? 'Edite as informações do post' : 'Preencha os dados do novo post'}
+            Edite as informações do post
           </p>
         </div>
       </div>
@@ -312,8 +509,6 @@ export default function PostForm() {
                 required
                 disabled={isLoading}
                 placeholder="titulo-do-post"
-                pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$"
-                title="Use apenas letras minúsculas, números e hífens"
               />
               <p className="text-sm text-muted-foreground">
                 Slug para URL (ex: meu-primeiro-post). Gerado automaticamente do título.
@@ -485,7 +680,7 @@ export default function PostForm() {
             <div className="flex gap-4 pt-4">
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isEdit ? 'Salvar Alterações' : 'Criar Post'}
+                Salvar Alterações
               </Button>
 
               <Button

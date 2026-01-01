@@ -4,6 +4,9 @@ import { uploadS3 } from '../config/s3.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { validate, postCreateSchema } from '../middleware/validation.js';
 import { NotFoundError } from '../utils/errors.js';
+import { fetchContentWithJinaAndMarkdown, generateNewsWithAI, generateSlug, categorizePostWithAI, generateTagsWithAI } from '../services/aiService.js';
+import { processImageFromSource } from '../services/imageService.js';
+import { getPlaceholderImageUrl } from '../utils/imagePlaceholder.js';
 
 const router = express.Router();
 
@@ -1025,6 +1028,260 @@ router.delete('/posts/:id', authenticateToken, async (req, res, next) => {
 
         res.status(200).json({ message: 'Post deletado com sucesso' });
     } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * Gerar post a partir de prompt (link + instruções)
+ * POST /api/posts/gerar-de-prompt
+ */
+router.post('/posts/gerar-de-prompt', authenticateToken, async (req, res, next) => {
+    try {
+        const { prompt } = req.body;
+
+        if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+            return res.status(400).json({
+                error: 'Prompt inválido',
+                message: 'O prompt é obrigatório e não pode estar vazio'
+            });
+        }
+
+        console.log(`🤖 Recebendo requisição POST /posts/gerar-de-prompt`);
+        console.log(`📝 Prompt recebido: ${prompt.substring(0, 100)}...`);
+
+        // Extrair URLs do texto usando regex
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const urls = prompt.match(urlRegex) || [];
+        const urlPrincipal = urls[0]; // Primeira URL encontrada
+        const promptLimpo = prompt.replace(urlRegex, '').trim(); // Remove URLs do prompt
+
+        console.log(`🔗 URLs encontradas: ${urls.length}`);
+        if (urlPrincipal) {
+            console.log(`   URL principal: ${urlPrincipal}`);
+        }
+        console.log(`📝 Prompt limpo: ${promptLimpo.substring(0, 100)}...`);
+
+        // Buscar conteúdo da URL usando Jina AI (se houver URL)
+        let conteudoComMarkdown = null;
+        let conteudoJina = null;
+        if (urlPrincipal) {
+            try {
+                console.log('🔍 Buscando conteúdo da URL com Jina AI...');
+                conteudoComMarkdown = await fetchContentWithJinaAndMarkdown(urlPrincipal);
+                if (conteudoComMarkdown && conteudoComMarkdown.content.length > 100) {
+                    conteudoJina = conteudoComMarkdown.content;
+                    console.log(`✅ Conteúdo obtido (${conteudoJina.length} chars)`);
+                } else {
+                    console.warn('⚠️ Conteúdo obtido é muito curto, usando prompt como conteúdo');
+                }
+            } catch (error) {
+                console.error('❌ Erro ao buscar conteúdo da URL:', error.message);
+                console.log('   Continuando sem conteúdo da URL...');
+            }
+        }
+
+        // Extrair imagem (se houver URL e conteúdo)
+        let imagemUrl = null;
+        if (urlPrincipal && conteudoComMarkdown) {
+            try {
+                console.log('🖼️  Tentando extrair imagem...');
+                imagemUrl = await processImageFromSource(
+                    urlPrincipal,
+                    conteudoComMarkdown.markdown
+                );
+                if (imagemUrl) {
+                    console.log(`✅ Imagem extraída e enviada para S3: ${imagemUrl}`);
+                }
+            } catch (error) {
+                console.error('❌ Erro ao processar imagem (continuando sem imagem):', error.message);
+            }
+        }
+
+        // Preparar dados para a IA
+        // Se houver prompt limpo, usar como assunto/resumo
+        // Se não houver, usar uma parte do conteúdo ou URL
+        const assunto = promptLimpo || (urlPrincipal ? `Conteúdo de ${urlPrincipal}` : 'Post gerado');
+        const resumo = promptLimpo || (conteudoJina ? conteudoJina.substring(0, 200) : assunto);
+        const conteudos = conteudoJina ? [conteudoJina] : [prompt]; // Se não houver conteúdo Jina, usar o prompt original
+
+        // Gerar notícia com IA apenas em português
+        console.log('🤖 Gerando notícia em português com IA...');
+        const newsData = await generateNewsWithAI({
+            assunto: assunto,
+            resumo: resumo,
+            conteudos: conteudos
+        });
+
+        console.log(`✅ Notícia gerada em português`);
+
+        // Buscar categorias disponíveis para categorização automática
+        const categoriasDisponiveis = await prisma.categoria.findMany();
+
+        // Preparar categorias no formato esperado pela IA
+        const categoriasFormatadas = categoriasDisponiveis.map(cat => ({
+            id: cat.id,
+            nomePt: cat.nome
+        }));
+
+        // Categorizar post usando IA
+        let categoriaId = null;
+        try {
+            console.log('🏷️  Categorizando post com IA...');
+            categoriaId = await categorizePostWithAI({
+                titulo: newsData.titulo,
+                conteudo: newsData.conteudo,
+                categoriasDisponiveis: categoriasFormatadas
+            });
+            if (categoriaId) {
+                console.log(`✅ Categoria determinada: ID ${categoriaId}`);
+            } else {
+                console.log('⚠️  Nenhuma categoria foi determinada');
+            }
+        } catch (error) {
+            console.error('❌ Erro ao categorizar post (continuando sem categoria):', error.message);
+        }
+
+        // Gerar tags usando IA
+        let tagsNomes = [];
+        try {
+            console.log('🏷️  Gerando tags com IA...');
+            tagsNomes = await generateTagsWithAI({
+                titulo: newsData.titulo,
+                conteudo: newsData.conteudo,
+                quantidade: 5
+            });
+            console.log(`✅ ${tagsNomes.length} tags geradas`);
+        } catch (error) {
+            console.error('❌ Erro ao gerar tags (continuando sem tags):', error.message);
+        }
+
+        // Criar ou buscar tags no banco de dados
+        const tagsIds = [];
+        for (const tagNome of tagsNomes) {
+            try {
+                // Tentar encontrar tag existente
+                let tag = await prisma.tag.findUnique({
+                    where: { nome: tagNome }
+                });
+
+                // Se não existe, criar
+                if (!tag) {
+                    tag = await prisma.tag.create({
+                        data: { nome: tagNome }
+                    });
+                    console.log(`   ✅ Tag criada: ${tagNome}`);
+                }
+
+                tagsIds.push(tag.id);
+            } catch (error) {
+                console.warn(`⚠️  Erro ao processar tag "${tagNome}":`, error.message);
+                // Continuar com outras tags mesmo se uma falhar
+            }
+        }
+
+        // Gerar slug único
+        let baseSlug = generateSlug(newsData.titulo);
+        let slugFinal = baseSlug;
+        let contador = 1;
+
+        // Verificar se slug já existe
+        while (await prisma.post.findUnique({ where: { urlAmigavel: slugFinal } })) {
+            slugFinal = `${baseSlug}-${contador}`;
+            contador++;
+        }
+
+        console.log(`   📝 Slug: ${slugFinal}`);
+
+        // Preparar array de imagens (sempre incluir imagem - extraída ou placeholder)
+        // Se não encontrou imagem, usar placeholder padrão
+        const imagens = imagemUrl ? [imagemUrl] : [getPlaceholderImageUrl()];
+
+        // Preparar dados de categorias e tags para criação
+        const categoriasData = categoriaId ? [{ categoriaId: categoriaId }] : [];
+        const tagsData = tagsIds.map(tagId => ({ tagId: tagId }));
+
+        // Criar post
+        const post = await prisma.post.create({
+            data: {
+                userId: req.user.id, // Associar ao usuário logado
+                titulo: newsData.titulo,
+                chamada: newsData.chamada,
+                conteudo: newsData.conteudo,
+                urlAmigavel: slugFinal,
+                status: 'RASCUNHO',
+                destaque: false,
+                imagens: imagens,
+                dataPublicacao: new Date(),
+                categorias: {
+                    create: categoriasData
+                },
+                tags: {
+                    create: tagsData
+                }
+            },
+            include: {
+                categorias: {
+                    include: {
+                        categoria: true
+                    }
+                },
+                tags: {
+                    include: {
+                        tag: true
+                    }
+                }
+            }
+        });
+
+        // Formatar resposta
+        const response = {
+            id: post.id,
+            titulo: post.titulo,
+            chamada: post.chamada,
+            conteudo: post.conteudo,
+            urlAmigavel: post.urlAmigavel,
+            imagens: post.imagens,
+            status: post.status,
+            destaque: post.destaque,
+            dataPublicacao: post.dataPublicacao,
+            createdAt: post.createdAt,
+            updatedAt: post.updatedAt,
+            categorias: post.categorias.map(pc => ({
+                id: pc.categoria.id,
+                nome: pc.categoria.nome
+            })),
+            tags: post.tags.map(pt => ({
+                id: pt.tag.id,
+                nome: pt.tag.nome
+            }))
+        };
+
+        console.log(`✅ Post criado com sucesso! ID: ${post.id}`);
+
+        res.status(201).json({
+            message: 'Post criado em português com sucesso',
+            postId: post.id,
+            post: response
+        });
+
+    } catch (error) {
+        console.error('❌ Erro ao gerar post do prompt:', error);
+        
+        // Mensagens de erro mais amigáveis
+        if (error.message.includes('OPENAI_API_KEY')) {
+            return res.status(500).json({ 
+                error: 'Serviço de IA não configurado. Contate o administrador.' 
+            });
+        }
+
+        if (error.message.includes('Jina')) {
+            return res.status(400).json({ 
+                error: 'Não foi possível obter conteúdo da URL',
+                message: 'Verifique se a URL é válida e acessível'
+            });
+        }
+
         next(error);
     }
 });
