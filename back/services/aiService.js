@@ -1,0 +1,784 @@
+import https from 'https';
+import http from 'http';
+
+/**
+ * Busca conteúdo de uma URL usando Jina AI Reader
+ * @param {string} url - URL para buscar
+ * @returns {Promise<string>} - Conteúdo limpo em markdown
+ */
+export async function fetchContentWithJina(url) {
+  return new Promise((resolve, reject) => {
+    const jinaUrl = `https://r.jina.ai/${url}`;
+
+    console.log(`🔍 Buscando conteúdo: ${url}`);
+
+    https.get(jinaUrl, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          console.log(`✅ Conteúdo obtido (${data.length} chars)`);
+          resolve(data);
+        } else {
+          reject(new Error(`Jina AI retornou status ${res.statusCode}`));
+        }
+      });
+    }).on('error', (err) => {
+      console.error('❌ Erro ao buscar conteúdo:', err);
+      reject(err);
+    });
+  });
+}
+
+/**
+ * Busca conteúdo de uma URL usando Jina AI Reader e retorna conteúdo + markdown
+ * @param {string} url - URL para buscar
+ * @returns {Promise<{content: string, markdown: string}>} - Conteúdo e markdown (mesmo valor do Jina)
+ */
+export async function fetchContentWithJinaAndMarkdown(url) {
+  const markdown = await fetchContentWithJina(url);
+  return {
+    content: markdown,
+    markdown: markdown
+  };
+}
+
+/**
+ * Gera uma notícia usando IA (OpenAI ou similar)
+ * @param {Object} params - Parâmetros
+ * @param {string} params.assunto - Assunto da pauta
+ * @param {string} params.resumo - Resumo da pauta
+ * @param {Array} params.conteudos - Array com conteúdos das fontes
+ * @param {boolean} params.multilingual - Se true, gera em PT, EN e ES
+ * @returns {Promise<Object>} - Se multilingual: {pt: {...}, en: {...}, es: {...}}, senão: {titulo, chamada, conteudo}
+ */
+export async function generateNewsWithAI({ assunto, resumo, conteudos }) {
+  // Verifica se tem OpenAI configurada
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY não configurada no .env');
+  }
+
+  // Prompt para gerar apenas em português
+  const prompt = `
+PAUTA:
+Assunto: ${assunto}
+Resumo: ${resumo}
+
+CONTEÚDO DAS FONTES:
+${conteudos.map((c, i) => `\n--- Fonte ${i + 1} ---\n${c.substring(0, 3000)}\n`).join('\n')}
+
+# PERSONA
+Você é um redator profissional de notícias sobre música eletrônica. Atue como um Jornalista Sênior e Especialista no assunto da pauta. Seu objetivo não é apenas relatar, mas analisar e contextualizar a informação para o leitor.
+
+# TAREFA
+Produza uma reportagem profunda e original em português (PT-BR) baseada na pauta fornecida.
+
+# DIRETRIZES DE CONTEÚDO (Para evitar "Conteúdo Raso"):
+1. ANALISE O IMPACTO: Não apenas diga "o quê", explique "por que isso importa" e "quem é afetado".
+2. CONTEXTO HISTÓRICO: Adicione um parágrafo sobre o que aconteceu antes ou como chegamos aqui.
+3. ESTRUTURA RICA: Use obrigatoriamente subtítulos (H2, H3) que dividam o texto em: O Fato, Análise de Especialista, Impacto no Setor e Perspectivas Futuras.
+4. TAMANHO: O artigo deve ter entre 600 e 1200 palavras (mais densidade).
+5. LINGUAGEM: Evite clichês de IA (como "no mundo de hoje", "em constante evolução"). Use um tom direto e autoritário.
+6. EXPANSÃO DE CONHECIMENTO: Use sua base de dados para adicionar pelo menos 2 fatos contextuais que NÃO estão na pauta original (Ex.: algo sobre a origem ou curiosidade sobre assunto principal da matéria.
+7. SAIBA MAIS: Procure finalizar o artigo com um Bloco de "Saiba Mais", indicando links para sites oficiais ou relevantes sobre o assunto abordado.
+8. TOM DE VOZ: Jornalismo investigativo/executivo. Evite adjetivos genéricos como "incrível" ou "fantástico". Use termos técnicos.
+
+FORMATO DA NOTÍCIA:
+- Título chamativo e profissional
+- Chamada (subtítulo) de 1-2 frases
+- Conteúdo completo em HTML (use tags <p>, <h2>, <strong>, <em>, etc.)
+
+FORMATO DE RESPOSTA (JSON):
+{
+  "titulo": "Título em português",
+  "chamada": "Subtítulo em português",
+  "conteudo": "<p>Conteúdo completo em HTML...</p>"
+}
+
+Retorne APENAS o JSON, sem texto adicional.`;
+
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'Você é um redator profissional de notícias em português. Sempre responda em JSON válido com titulo, chamada e conteudo.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.7,
+      max_completion_tokens: 2000
+    });
+
+    const options = {
+      hostname: 'api.openai.com',
+      port: 443,
+      path: '/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    console.log('🤖 Chamando OpenAI para gerar notícia...');
+
+    const req = https.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          if (res.statusCode !== 200) {
+            console.error('❌ OpenAI error:', data);
+            reject(new Error(`OpenAI retornou status ${res.statusCode}`));
+            return;
+          }
+
+          const response = JSON.parse(data);
+          const content = response.choices[0].message.content;
+
+          // Remove marcadores de código markdown se houver
+          let jsonString = content
+            .replace(/```json\n?/g, '')
+            .replace(/```\n?/g, '')
+            .trim();
+
+          const newsData = JSON.parse(jsonString);
+
+          // Validar formato
+          if (!newsData.titulo || !newsData.chamada || !newsData.conteudo) {
+            throw new Error('Resposta da IA não contém todos os campos necessários (titulo, chamada, conteudo)');
+          }
+
+          console.log('✅ Notícia gerada em português com sucesso!');
+
+          resolve(newsData);
+        } catch (error) {
+          console.error('❌ Erro ao parsear resposta da IA:', error);
+          reject(error);
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      console.error('❌ Erro na requisição OpenAI:', error);
+      reject(error);
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}
+
+/**
+ * Gera um slug a partir de um texto
+ * @param {string} text - Texto para converter em slug
+ * @returns {string} - Slug gerado
+ */
+export function generateSlug(text) {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+/**
+ * Gera sugestões de pauta usando IA
+ * Busca fontes, extrai conteúdo e usa OpenAI para sugerir pautas
+ * @param {Array} fontes - Array de fontes {titulo, url}
+ * @returns {Promise<Array>} - Array de pautas sugeridas
+ */
+export async function generatePautasWithAI(fontes) {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY não configurada no .env');
+  }
+
+  console.log(`📋 Processando ${fontes.length} fontes...`);
+
+  // Buscar conteúdo de todas as fontes usando Jina AI
+  const conteudosPromises = fontes.map(fonte =>
+    fetchContentWithJina(fonte.url)
+      .then(conteudo => ({
+        titulo: fonte.titulo,
+        url: fonte.url,
+        conteudo: conteudo.substring(0, 5000) // Limitar tamanho
+      }))
+      .catch(err => {
+        console.warn(`⚠️ Erro ao buscar ${fonte.url}:`, err.message);
+        return null;
+      })
+  );
+
+  const conteudos = (await Promise.all(conteudosPromises)).filter(c => c !== null);
+
+  if (conteudos.length === 0) {
+    throw new Error('Não foi possível obter conteúdo de nenhuma fonte');
+  }
+
+  console.log(`✅ ${conteudos.length} conteúdos obtidos com sucesso`);
+
+  // Montar prompt para OpenAI
+  const conteudosTexto = conteudos.map((item, i) =>
+    `## Fonte ${i + 1}: ${item.titulo}\nURL: ${item.url}\n\n${item.conteudo}\n\n---\n`
+  ).join('');
+
+  const prompt = `Você é um editor de notícias especializado em música eletrônica.
+
+Analise os seguintes conteúdos de sites de notícias e gere sugestões de pauta para os últimos 7 dias.
+
+CONTEÚDOS:
+${conteudosTexto}
+
+INSTRUÇÕES:
+- Identifique as 10 notícias mais recentes de cada fonte, e envie como sugestão de pauta.
+- Não envie sugestões de pauta que já foram enviadas anteriormente.
+- Não envie sugestões de pauta que não tenham notícias recentes (até 7 dias).
+- Procure enviar o máximo de sugestões possivel até um limite de 40 sugestões no total.
+- Procure variar os assuntos e fontes para manter a diversidade.
+- Se o mesmo assunto aparecer em mais de uma fonte, transforme-o em uma sugestão de pauta única, marcando-o com a tag [IMPORTANTE] no começo do assunto.
+- Para cada sugestão de pauta, forneça:
+  - Assunto (título curto e explicativo)
+  - Resumo (2-3 frases explicando a notícia)
+  - Fontes (lista com nome e URL de onde veio a informação)
+
+FORMATO DE RESPOSTA (JSON):
+{
+  "pautas": [
+    {
+      "assunto": "Grammy 2026: Skrillex concorre em 2 categorias",
+      "resumo": "Foram divulgados os indicados do Grammy 2026. Skrillex está presente em duas categorias de música eletrônica.",
+      "fontes": [
+        {"nome": "House Mag", "url": "https://housemag.com.br/..."},
+        {"nome": "Mixmag Brasil", "url": "https://mixmag.com.br/..."}
+      ]
+    }
+  ]
+}
+
+IMPORTANTE: Retorne APENAS o JSON, sem texto adicional.`;
+
+  // Chamar OpenAI
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'Você é um editor de notícias especializado. Sempre responda em JSON válido.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 4000
+    });
+
+    const options = {
+      hostname: 'api.openai.com',
+      port: 443,
+      path: '/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    console.log('🤖 Chamando OpenAI para gerar sugestões de pauta...');
+
+    const req = https.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          if (res.statusCode !== 200) {
+            console.error('❌ OpenAI error:', data);
+            reject(new Error(`OpenAI retornou status ${res.statusCode}`));
+            return;
+          }
+
+          const response = JSON.parse(data);
+          const content = response.choices[0].message.content;
+
+          // Remove marcadores de código markdown se houver
+          let jsonString = content
+            .replace(/```json\n?/g, '')
+            .replace(/```\n?/g, '')
+            .trim();
+
+          const resultado = JSON.parse(jsonString);
+          const pautas = resultado.pautas || [];
+
+          console.log(`✅ ${pautas.length} pautas sugeridas pela IA`);
+          resolve(pautas);
+        } catch (error) {
+          console.error('❌ Erro ao parsear resposta da IA:', error);
+          reject(error);
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      console.error('❌ Erro na requisição OpenAI:', error);
+      reject(error);
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}
+
+/**
+ * Determina a categoria mais adequada para um post usando IA
+ * @param {Object} params - Parâmetros
+ * @param {string} params.titulo - Título do post
+ * @param {string} params.conteudo - Conteúdo do post
+ * @param {Array} params.categoriasDisponiveis - Array de categorias {id, nomePt, nomeEn, nomeEs}
+ * @returns {Promise<number|null>} - ID da categoria ou null se não conseguir determinar
+ */
+export async function categorizePostWithAI({ titulo, conteudo, categoriasDisponiveis }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY não configurada no .env');
+  }
+
+  const categoriasTexto = categoriasDisponiveis.map(cat =>
+    `- ID ${cat.id}: ${cat.nomePt} (${cat.nomeEn} / ${cat.nomeEs})`
+  ).join('\n');
+
+  const prompt = `Você é um editor especializado em categorização de notícias sobre música eletrônica.
+
+TÍTULO DA NOTÍCIA:
+${titulo}
+
+CONTEÚDO DA NOTÍCIA:
+${conteudo.substring(0, 2000)}
+
+CATEGORIAS DISPONÍVEIS:
+${categoriasTexto}
+
+TAREFA:
+Analise o título e conteúdo da notícia e determine qual categoria é mais adequada.
+Retorne APENAS o ID numérico da categoria escolhida (exemplo: 7).
+
+Se a notícia falar sobre inteligencia artificial, serviços ou sites de música como spotify, soundcloud, etc, classifique na categoria Tecnologia.
+
+Se a notícia falar sobre algum artista da latino, marque como América Latina.
+
+Se a notícia falar sobre um evento, festival ou show, marque na categoria Festival.
+
+Se nenhuma categoria for adequada, marque como Mundo.
+
+FORMATO DE RESPOSTA:
+Apenas o número do ID ou "null", sem texto adicional.`;
+
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'Você é um editor especializado. Sempre responda apenas com o ID numérico da categoria ou "null".'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 10
+    });
+
+    const options = {
+      hostname: 'api.openai.com',
+      port: 443,
+      path: '/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    console.log('🤖 Chamando OpenAI para categorizar post...');
+
+    const req = https.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          if (res.statusCode !== 200) {
+            console.error('❌ OpenAI error:', data);
+            reject(new Error(`OpenAI retornou status ${res.statusCode}`));
+            return;
+          }
+
+          const response = JSON.parse(data);
+          const content = response.choices[0].message.content.trim();
+
+          let categoriaId = content
+            .replace(/```json\n?/g, '')
+            .replace(/```\n?/g, '')
+            .replace(/"/g, '')
+            .trim();
+
+          if (categoriaId.toLowerCase() === 'null' || categoriaId === '') {
+            console.log('⚠️  IA não conseguiu determinar categoria');
+            resolve(null);
+            return;
+          }
+
+          const id = parseInt(categoriaId);
+          if (isNaN(id)) {
+            console.warn('⚠️  Resposta da IA não é um número válido:', categoriaId);
+            resolve(null);
+            return;
+          }
+
+          const categoriaExiste = categoriasDisponiveis.some(cat => cat.id === id);
+          if (!categoriaExiste) {
+            console.warn(`⚠️  Categoria ID ${id} não existe nas categorias disponíveis`);
+            resolve(null);
+            return;
+          }
+
+          console.log(`✅ Categoria determinada: ID ${id}`);
+          resolve(id);
+        } catch (error) {
+          console.error('❌ Erro ao parsear resposta da IA:', error);
+          reject(error);
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      console.error('❌ Erro na requisição OpenAI:', error);
+      reject(error);
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}
+
+/**
+ * Gera tags relacionadas ao conteúdo usando IA
+ * @param {Object} params - Parâmetros
+ * @param {string} params.titulo - Título do post
+ * @param {string} params.conteudo - Conteúdo do post
+ * @param {number} params.quantidade - Quantidade de tags desejadas (padrão: 5)
+ * @returns {Promise<Array<string>>} - Array de tags geradas
+ */
+export async function generateTagsWithAI({ titulo, conteudo, quantidade = 5 }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY não configurada no .env');
+  }
+
+  const prompt = `Você é um editor especializado em música eletrônica.
+
+TÍTULO DA NOTÍCIA:
+${titulo}
+
+CONTEÚDO DA NOTÍCIA:
+${conteudo.substring(0, 2000)}
+
+TAREFA:
+Gere ${quantidade} tags relevantes relacionadas ao conteúdo da notícia.
+As tags devem ser:
+- Palavras-chave importantes do texto
+- Nomes de artistas, DJs, festivais mencionados
+- Gêneros musicais relacionados
+- Termos técnicos relevantes
+- Em português, minúsculas, sem acentos (ex: "edm", "festival", "tiesto", "house music")
+
+FORMATO DE RESPOSTA (JSON):
+{
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
+}
+
+Retorne APENAS o JSON, sem texto adicional.`;
+
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'Você é um editor especializado. Sempre responda em JSON válido com array de tags.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 200
+    });
+
+    const options = {
+      hostname: 'api.openai.com',
+      port: 443,
+      path: '/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    console.log(`🤖 Chamando OpenAI para gerar ${quantidade} tags...`);
+
+    const req = https.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          if (res.statusCode !== 200) {
+            console.error('❌ OpenAI error:', data);
+            reject(new Error(`OpenAI retornou status ${res.statusCode}`));
+            return;
+          }
+
+          const response = JSON.parse(data);
+          const content = response.choices[0].message.content;
+
+          let jsonString = content
+            .replace(/```json\n?/g, '')
+            .replace(/```\n?/g, '')
+            .trim();
+
+          const resultado = JSON.parse(jsonString);
+          const tags = resultado.tags || [];
+
+          const tagsLimpas = tags
+            .map(tag => tag.toLowerCase().trim())
+            .filter(tag => tag.length > 0 && tag.length <= 50)
+            .slice(0, quantidade);
+
+          console.log(`✅ ${tagsLimpas.length} tags geradas: ${tagsLimpas.join(', ')}`);
+          resolve(tagsLimpas);
+        } catch (error) {
+          console.error('❌ Erro ao parsear resposta da IA:', error);
+          reject(error);
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      console.error('❌ Erro na requisição OpenAI:', error);
+      reject(error);
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}
+
+/**
+ * Gera traduções de um post existente para os idiomas faltantes
+ * @param {Object} params - Parâmetros
+ * @param {string} params.titulo - Título do post original
+ * @param {string} params.chamada - Chamada do post original
+ * @param {string} params.conteudo - Conteúdo HTML do post original
+ * @param {string} params.idiomaOriginal - Idioma do post ('pt', 'en' ou 'es')
+ * @returns {Promise<Object>} - JSON com traduções geradas {idioma: {titulo, chamada, conteudo}}
+ */
+
+/**
+ * Extrai itens de feed (notícias) de uma página de listagem usando IA
+ * @param {Object} params - Parâmetros
+ * @param {string} params.fonteUrl - URL base da fonte (para resolver URLs relativas)
+ * @param {string} params.fonteTitulo - Título da fonte
+ * @param {string} params.conteudoJina - Conteúdo extraído pelo Jina AI Reader
+ * @param {number} params.limite - Limite de notícias a extrair (padrão: 10)
+ * @returns {Promise<Array>} - Array de itens do feed [{titulo, url, chamada?, imagemUrl?, dataPublicacao?}]
+ */
+export async function extractFeedItemsWithAI({ fonteUrl, fonteTitulo, conteudoJina, limite = 10 }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY não configurada no .env');
+  }
+
+  // Extrair domínio base para resolver URLs relativas
+  const urlObj = new URL(fonteUrl);
+  const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
+
+  const prompt = `Você é um parser de notícias especializado em extrair informações estruturadas de páginas de listagem de notícias.
+
+FONTE: ${fonteTitulo}
+URL BASE: ${baseUrl}
+
+CONTEÚDO DA PÁGINA (extraído via Jina AI Reader):
+${conteudoJina.substring(0, 15000)}
+
+TAREFA:
+Analise o conteúdo acima e extraia as ${limite} notícias mais recentes encontradas na página.
+
+Para cada notícia, extraia:
+1. **titulo** (obrigatório): O título da notícia
+2. **url** (obrigatório): Link completo para a notícia (se for relativo, combine com a URL base)
+3. **chamada** (opcional): Resumo/subtítulo se disponível
+4. **imagemUrl** (opcional): URL da imagem de capa se encontrada
+5. **dataPublicacao** (opcional): Data de publicação no formato ISO 8601 (YYYY-MM-DDTHH:mm:ss.sssZ) se disponível
+
+REGRAS:
+- Extraia APENAS notícias reais, não menus, links de navegação ou anúncios
+- URLs devem ser absolutas (começando com http:// ou https://)
+- Se a URL for relativa (ex: /news/artigo), combine com a URL base: ${baseUrl}
+- Não invente informações - se não encontrar, deixe o campo vazio ou null
+- Priorize notícias mais recentes
+- Retorne no máximo ${limite} itens
+
+FORMATO DE RESPOSTA (JSON):
+{
+  "items": [
+    {
+      "titulo": "Título da notícia",
+      "url": "https://exemplo.com/noticia-completa",
+      "chamada": "Resumo ou subtítulo (opcional)",
+      "imagemUrl": "https://exemplo.com/imagem.jpg (opcional)",
+      "dataPublicacao": "2025-01-15T10:30:00.000Z (opcional)"
+    }
+  ]
+}
+
+Retorne APENAS o JSON, sem texto adicional.`;
+
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'Você é um parser de notícias especializado. Sempre responda em JSON válido com array de items extraídos.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.2, // Baixa temperatura para extração mais precisa
+      max_tokens: 4000
+    });
+
+    const options = {
+      hostname: 'api.openai.com',
+      port: 443,
+      path: '/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    console.log(`🔍 Extraindo até ${limite} notícias de ${fonteTitulo}...`);
+
+    const req = https.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          if (res.statusCode !== 200) {
+            console.error('❌ OpenAI error:', data);
+            reject(new Error(`OpenAI retornou status ${res.statusCode}`));
+            return;
+          }
+
+          const response = JSON.parse(data);
+          const content = response.choices[0].message.content;
+
+          // Remove marcadores de código markdown se houver
+          let jsonString = content
+            .replace(/```json\n?/g, '')
+            .replace(/```\n?/g, '')
+            .trim();
+
+          const resultado = JSON.parse(jsonString);
+          const items = resultado.items || [];
+
+          // Validar e limpar items
+          const itemsValidos = items
+            .filter(item => item.titulo && item.url)
+            .map(item => ({
+              titulo: item.titulo.trim(),
+              url: item.url.trim(),
+              chamada: item.chamada?.trim() || null,
+              imagemUrl: item.imagemUrl?.trim() || null,
+              dataPublicacao: item.dataPublicacao ? new Date(item.dataPublicacao) : null
+            }))
+            .filter(item => {
+              // Validar URL
+              try {
+                new URL(item.url);
+                return true;
+              } catch {
+                console.warn(`⚠️ URL inválida ignorada: ${item.url}`);
+                return false;
+              }
+            })
+            .slice(0, limite);
+
+          console.log(`✅ ${itemsValidos.length} notícias extraídas de ${fonteTitulo}`);
+          resolve(itemsValidos);
+        } catch (error) {
+          console.error('❌ Erro ao parsear resposta da IA:', error);
+          reject(error);
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      console.error('❌ Erro na requisição OpenAI:', error);
+      reject(error);
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}

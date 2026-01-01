@@ -1,0 +1,241 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 100% /* hsl(0 50% 0%) */;
+    /*--foreground: 222.2 84% 4.9%*/; 
+    --foreground: var(--oceanic);
+    
+    --primary: 204 57% 15% /* hsl(204 57% 15%) */;
+    --primary-foreground: 210 40% 98% /* hsl(210 40% 98%) */;
+
+    --secondary: 210 40% 96.1% /* hsl(210 40% 96.1%) */;
+    --secondary-foreground: 222.2 47.4% 11.2% /* hsl(222.2 47.4% 11.2%) */;
+
+    --oceanic: 204 57% 15% /* hsl(204 57% 15%) */;
+    --oceanic-foreground: 0 0% 100% /* hsl(0 0% 100%) */;
+    
+    --blood: 6 97% 28% /* hsl(6 97% 28%) */;
+    --blood-foreground: 0 0% 100% /* hsl(0 0% 100%) */;
+
+    --card: 0 0% 100% /* hsl(0 0% 100%) /* background dos blocos de conteudo */;    
+    /*--card-foreground: 222.2 84% 4.9% /* hsl(222.2 84% 4.9%) /* texto dos blocos de conteudo */;
+    --card-foreground: var(--oceanic);
+
+    --popover: 0 0% 100% /* hsl(0 0% 100%) */;    
+    --popover-foreground: var(--oceanic);
+
+    --muted: 210 40% 96.1% /* hsl(210 40% 96.1%) */;
+    --muted-foreground: 215.4 16.3% 46.9% /* hsl(215.4 16.3% 46.9%) */;
+
+    --accent: 210 40% 96.1% /* hsl(210 40% 96.1%) */;
+    /*--accent-foreground: 222.2 47.4% 11.2% /* hsl(222.2 47.4% 11.2%) */;
+    --accent-foreground: var(--oceanic);
+
+    --destructive: 0 84.2% 60.2% /* hsl(0 84.2% 60.2%) */;
+    --destructive-foreground: 210 40% 98% /* hsl(210 40% 98%) */;
+
+    --border: 214.3 31.8% 91.4% /* hsl(214.3 31.8% 91.4%) */;
+    --input: 214.3 31.8% 91.4% /* hsl(214.3 31.8% 91.4%) */;
+    /*--ring: 222.2 84% 4.9% /* hsl(222.2 84% 4.9%) */;
+    --ring: var(--oceanic);
+
+    --radius: 0.5rem;
+
+    /*--sidebar-background: 0 0% 98% /* hsl(0 0% 98%) */;
+    --sidebar-background: 214 57% 15% /* hsl(214 57% 15%) */;
+
+    /*--sidebar-foreground: 240 5.3% 26.1% /* hsl(240 5.3% 26.1%) */;
+    --sidebar-foreground: 122 0% 100% /* hsl(122 0% 100%) /* texto dos itens da sidebar*/;    
+
+    /*--sidebar-accent: 240 4.8% 95.9% /* hsl(240 4.8% 95.9%) */;
+    --sidebar-accent: 222.2 84% 4.9% /* hsl(204 57% 15%) /* hover no background dos itens da sidebar*/;
+
+    /*--sidebar-accent-foreground: 240 5.9% 10% /* hsl(240 5.9% 10%) */;
+    --sidebar-accent-foreground: 0 0% 100% /* hsl(0 0% 100%) /* hover no texto dos itens da sidebar*/;
+
+    --sidebar-border: 220 13% 91% /* hsl(220 13% 91%) /* borda dos itens da sidebar*/;    
+
+    --sidebar-ring: 217.2 91.2% 59.8% /* hsl(217.2 91.2% 59.8%) */;
+    /*--sidebar-primary: 240 5.9% 10% /* hsl(240 5.9% 10%) */;
+    --sidebar-primary: 217.2 91.2% 59.8% /* hsl(217.2 91.2% 59.8%) */;
+    /*--sidebar-primary-foreground: 0 0% 98% /* hsl(0 0% 98%) */;
+    --sidebar-primary-foreground: 217.2 91.2% 59.8% /* hsl(217.2 91.2% 59.8%) */;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9% /* hsl(222.2 84% 4.9%) /* background da pagina*/;
+    --foreground: 210 40% 98% /* hsl(210 40% 98%) /* cor de alguns icones*/;
+
+    --card: 222.2 84% 4.9% /* hsl(222.2 84% 4.9%) /* background dos blocos de conteudo*/;
+    --card-foreground: 210 40% 98% /* hsl(210 40% 98%) /* texto dos blocos de conteudo*/;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-size: 1.15rem; /* Aumenta tamanho base de todos os textos */
+  }
+
+  body {
+    @apply bg-background text-foreground;    
+  }
+
+  h1, h2{
+    @apply text-primary;
+  }
+}
+
+/* Estilos para embeds responsivos genéricos */
+@layer components {
+  /* Container genérico de embed */
+  .embed-container {
+    margin: 1.5rem auto;
+    max-width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  .embed-content {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Estilos específicos por plataforma */
+  
+  /* YouTube */
+  .embed-youtube iframe {
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    border-radius: 0.5rem;
+  }
+
+  /* TikTok */
+  .embed-tiktok {
+    max-width: 605px;
+  }
+
+  .embed-tiktok blockquote.tiktok-embed {
+    margin: 0 auto !important;
+    min-width: 325px;
+    max-width: 605px;
+  }
+
+  /* Instagram */
+  .embed-instagram {
+    max-width: 540px;
+  }
+
+  .embed-instagram blockquote.instagram-media {
+    background: #FFF !important;
+    border: 0 !important;
+    border-radius: 3px !important;
+    box-shadow: 0 0 1px 0 rgba(0,0,0,0.5), 0 1px 10px 0 rgba(0,0,0,0.15) !important;
+    margin: 1px auto !important;
+    max-width: 540px !important;
+    min-width: 326px !important;
+    padding: 0 !important;
+    width: calc(100% - 2px) !important;
+  }
+
+  /* Spotify */
+  .embed-spotify iframe {
+    border-radius: 12px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* SoundCloud */
+  .embed-soundcloud iframe {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Garantir responsividade de iframes */
+  .embed-container iframe {
+    max-width: 100%;
+    display: block;
+  }
+
+  /* Estilos para o editor TipTap */
+  .ProseMirror .embed-container {
+    cursor: default;
+    position: relative;
+  }
+
+  .ProseMirror .embed-container:hover {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+
+  .ProseMirror .embed-container[data-embed-type]::before {
+    content: attr(data-embed-type);
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .ProseMirror .embed-container:hover::before {
+    opacity: 0.9;
+  }
+
+  /* Preservar estilos nativos das plataformas */
+  .embed-container blockquote,
+  .embed-container iframe,
+  .embed-container script {
+    margin: 0;
+  }
+}

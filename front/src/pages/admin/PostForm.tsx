@@ -1,0 +1,505 @@
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { postsService } from '@/services/posts.service';
+import { categoriasService } from '@/services/categorias.service';
+import { tagsService } from '@/services/tags.service';
+import { PostFormData } from '@/types/admin';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { ArrowLeft, Loader2, X, Upload } from 'lucide-react';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
+import { Checkbox } from '@/components/ui/checkbox';
+import { TagInput } from '@/components/ui/tag-input';
+
+export default function PostForm() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const isEdit = !!id;
+
+  // Estado do formulário
+  const [formData, setFormData] = useState({
+    titulo: '',
+    chamada: '',
+    conteudo: '',
+    urlAmigavel: '',
+    status: 'RASCUNHO' as 'RASCUNHO' | 'PUBLICADO',
+    destaque: false,
+    dataPublicacao: new Date().toISOString().slice(0, 16),
+    imagens: [] as File[],
+    oldImages: [] as string[],
+  });
+
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [selectedCategorias, setSelectedCategorias] = useState<number[]>([]);
+  const [tagNames, setTagNames] = useState<string[]>([]);
+  const [tagSearchQuery, setTagSearchQuery] = useState('');
+
+  // Buscar categorias
+  const { data: categorias } = useQuery({
+    queryKey: ['categorias'],
+    queryFn: () => categoriasService.getAll(),
+  });
+
+  // Buscar tags para autocomplete
+  const { data: tagSuggestions = [] } = useQuery({
+    queryKey: ['tags', 'search', tagSearchQuery],
+    queryFn: () => tagsService.search(tagSearchQuery),
+    enabled: tagSearchQuery.length > 0,
+  });
+
+  // Buscar todas as tags (para carregar tags existentes do post)
+  const { data: allTags } = useQuery({
+    queryKey: ['tags'],
+    queryFn: () => tagsService.getAll(),
+  });
+
+  // Buscar post se for edição
+  const { data: post, refetch: refetchPost } = useQuery({
+    queryKey: ['post', id],
+    queryFn: () => postsService.getById(Number(id)),
+    enabled: isEdit && !!id,
+  });
+
+  // Carregar dados do post quando for edição
+  useEffect(() => {
+    if (post && isEdit) {
+      const categoriasIds = post.categorias?.map(c => c.id) || [];
+      const tagNamesFromPost = post.tags?.map(t => t.nome).filter(Boolean) || [];
+
+      // Converter data para formato datetime-local
+      let dataFormatada = '';
+      if (post.dataPublicacao) {
+        const date = new Date(post.dataPublicacao);
+        dataFormatada = date.toISOString().slice(0, 16);
+      }
+
+      setFormData({
+        titulo: post.titulo || '',
+        chamada: post.chamada || '',
+        conteudo: post.conteudo || '',
+        urlAmigavel: post.urlAmigavel || '',
+        status: post.status,
+        destaque: post.destaque,
+        dataPublicacao: dataFormatada,
+        imagens: [],
+        oldImages: post.imagens || [],
+      });
+
+      setPreviewImages(post.imagens || []);
+      setSelectedCategorias(categoriasIds);
+      setTagNames(tagNamesFromPost);
+    }
+  }, [post, isEdit]);
+
+  // Preencher formulário com dados da pauta (se vier de conversão)
+  useEffect(() => {
+    const pautaData = location.state?.fromPauta;
+    if (pautaData && !isEdit) {
+      setFormData(prev => ({
+        ...prev,
+        titulo: pautaData.titulo || '',
+        chamada: pautaData.chamada || '',
+        conteudo: pautaData.conteudo || '',
+        urlAmigavel: generateSlug(pautaData.titulo || ''),
+      }));
+
+      toast({
+        title: 'Dados carregados da pauta',
+        description: 'O formulário foi preenchido com os dados da sugestão de pauta.',
+      });
+    }
+  }, [location.state, isEdit, toast]);
+
+  // Mutation para criar
+  const createMutation = useMutation({
+    mutationFn: (data: PostFormData) => postsService.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      toast({
+        title: 'Post criado',
+        description: 'O post foi criado com sucesso.',
+      });
+      navigate('/admin/posts');
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao criar post',
+        description: error.message,
+      });
+    },
+  });
+
+  // Mutation para atualizar
+  const updateMutation = useMutation({
+    mutationFn: (data: Partial<PostFormData>) =>
+      postsService.update(Number(id), data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['post', id] });
+      toast({
+        title: 'Post atualizado',
+        description: 'O post foi atualizado com sucesso.',
+      });
+      refetchPost();
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao atualizar post',
+        description: error.message,
+      });
+    },
+  });
+
+  const generateSlug = (text: string) => {
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove accents
+      .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphens
+      .replace(/(^-|-$)/g, ''); // Remove leading/trailing hyphens
+  };
+
+  const handleTituloChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      titulo: value,
+      // Auto-gerar slug se estiver vazio ou se o slug atual é igual ao slug gerado do título anterior
+      urlAmigavel: prev.urlAmigavel === generateSlug(prev.titulo) || !prev.urlAmigavel
+        ? generateSlug(value)
+        : prev.urlAmigavel
+    }));
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      setFormData(prev => ({
+        ...prev,
+        imagens: [file]
+      }));
+
+      // Preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewImages([reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData(prev => ({
+      ...prev,
+      imagens: [],
+      oldImages: []
+    }));
+    setPreviewImages([]);
+  };
+
+  const toggleCategoria = (categoriaId: number) => {
+    setSelectedCategorias(prev =>
+      prev.includes(categoriaId)
+        ? prev.filter(id => id !== categoriaId)
+        : [...prev, categoriaId]
+    );
+  };
+
+  // Handler para busca de tags (autocomplete)
+  const handleTagSearch = (query: string) => {
+    setTagSearchQuery(query);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validações básicas
+    if (!formData.titulo || !formData.chamada || !formData.conteudo || !formData.urlAmigavel) {
+      toast({
+        variant: 'destructive',
+        title: 'Campos obrigatórios faltando',
+        description: 'Preencha título, chamada, conteúdo e URL amigável.',
+      });
+      return;
+    }
+
+    try {
+      const tagIds = await tagsService.resolveTagIds(tagNames);
+
+      const dataToSubmit: PostFormData = {
+        ...formData,
+        categorias: selectedCategorias || [],
+        tags: tagIds || [],
+      };
+
+      if (isEdit) {
+        updateMutation.mutate(dataToSubmit);
+      } else {
+        createMutation.mutate(dataToSubmit);
+      }
+    } catch (error) {
+      console.error('Erro ao salvar post:', error);
+    }
+  };
+
+  const handleChange = (field: keyof typeof formData, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const isLoading = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/admin/posts')}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold tracking-tight">
+            {isEdit ? 'Editar Post' : 'Novo Post'}
+          </h1>
+          <p className="text-muted-foreground">
+            {isEdit ? 'Edite as informações do post' : 'Preencha os dados do novo post'}
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Informações do Post</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="titulo">Título *</Label>
+              <Input
+                id="titulo"
+                value={formData.titulo}
+                onChange={(e) => handleTituloChange(e.target.value)}
+                required
+                disabled={isLoading}
+                placeholder="Digite o título do post"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="urlAmigavel">URL Amigável *</Label>
+              <Input
+                id="urlAmigavel"
+                value={formData.urlAmigavel}
+                onChange={(e) => handleChange('urlAmigavel', e.target.value)}
+                required
+                disabled={isLoading}
+                placeholder="titulo-do-post"
+                pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                title="Use apenas letras minúsculas, números e hífens"
+              />
+              <p className="text-sm text-muted-foreground">
+                Slug para URL (ex: meu-primeiro-post). Gerado automaticamente do título.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="chamada">Chamada *</Label>
+              <Textarea
+                id="chamada"
+                value={formData.chamada}
+                onChange={(e) => handleChange('chamada', e.target.value)}
+                required
+                disabled={isLoading}
+                rows={3}
+                placeholder="Resumo ou chamada do post (aparece nas listagens)"
+              />
+            </div>
+
+            {/* Imagem de Capa */}
+            <div className="space-y-2">
+              <Label>Imagem de Capa</Label>
+              <p className="text-sm text-muted-foreground">
+                Formatos aceitos: JPEG, JPG, PNG, WEBP (máximo 10MB)
+              </p>
+              <div className="space-y-4">
+                {/* Preview da imagem */}
+                {previewImages.length > 0 && (
+                  <div className="relative w-full max-w-md">
+                    <img
+                      src={previewImages[0]}
+                      alt="Imagem de capa"
+                      className="w-full h-48 object-cover rounded-lg border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2 h-8 w-8"
+                      onClick={handleRemoveImage}
+                      disabled={isLoading}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Input de upload */}
+                {previewImages.length === 0 && (
+                  <div className="flex items-center gap-4">
+                    <Input
+                      id="imagem-capa"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      disabled={isLoading}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => document.getElementById('imagem-capa')?.click()}
+                      disabled={isLoading}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Selecionar Imagem de Capa
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="conteudo">Conteúdo *</Label>
+              <RichTextEditor
+                content={formData.conteudo}
+                onChange={(html) => handleChange('conteudo', html)}
+                className={isLoading ? 'opacity-50 pointer-events-none' : ''}
+              />
+              <p className="text-sm text-muted-foreground">
+                Use o editor para formatar o texto com negrito, itálico, listas e mais.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="status">Status *</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value: 'RASCUNHO' | 'PUBLICADO') => handleChange('status', value)}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="RASCUNHO">Rascunho</SelectItem>
+                    <SelectItem value="PUBLICADO">Publicado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dataPublicacao">Data de Publicação</Label>
+                <Input
+                  id="dataPublicacao"
+                  type="datetime-local"
+                  value={formData.dataPublicacao}
+                  onChange={(e) => handleChange('dataPublicacao', e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Destaque</Label>
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox
+                    id="destaque"
+                    checked={formData.destaque}
+                    onCheckedChange={(checked) => handleChange('destaque', checked)}
+                    disabled={isLoading}
+                  />
+                  <label
+                    htmlFor="destaque"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Marcar como destaque
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Categorias */}
+            <div className="space-y-2">
+              <Label>Categorias</Label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {categorias?.map((categoria) => (
+                  <div key={categoria.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`categoria-${categoria.id}`}
+                      checked={selectedCategorias.includes(categoria.id)}
+                      onCheckedChange={() => toggleCategoria(categoria.id)}
+                      disabled={isLoading}
+                    />
+                    <label
+                      htmlFor={`categoria-${categoria.id}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      {categoria.nome}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tags */}
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              <TagInput
+                value={tagNames}
+                onChange={setTagNames}
+                suggestions={tagSuggestions}
+                onSearch={handleTagSearch}
+                disabled={isLoading}
+                placeholder="Digite tags separadas por vírgula (ex: música, festival, eletrônica)..."
+              />
+            </div>
+
+            <div className="flex gap-4 pt-4">
+              <Button type="submit" disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isEdit ? 'Salvar Alterações' : 'Criar Post'}
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate('/admin/posts')}
+                disabled={isLoading}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </form>
+    </div>
+  );
+}

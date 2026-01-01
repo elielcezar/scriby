@@ -1,0 +1,155 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  name      String
+  password  String
+  role      UserRole  @default(EDITOR)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  posts     Post[]
+  pautas    Pauta[]
+  fontes    Fonte[]
+
+  @@map("users")
+}
+
+model Post {
+  id              Int            @id @default(autoincrement())
+  userId          String
+  titulo          String
+  chamada         String         @db.Text
+  conteudo        String         @db.Text
+  urlAmigavel     String         @unique // Slug sem prefixo de idioma
+  imagens         Json           // Array de URLs das imagens no S3
+  status          PostStatus     @default(RASCUNHO)
+  destaque        Boolean        @default(false)
+  dataPublicacao  DateTime?      // Data de publicação
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categorias      PostCategoria[]
+  tags            PostTag[]
+
+  @@map("posts")
+  @@index([status])
+  @@index([destaque])
+  @@index([dataPublicacao])
+  @@index([userId])
+  @@index([urlAmigavel])
+}
+
+enum PostStatus {
+  RASCUNHO
+  PUBLICADO
+}
+
+model Categoria {
+  id        Int              @id @default(autoincrement())
+  nome      String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  posts     PostCategoria[]
+
+  @@map("categorias")
+}
+
+model PostCategoria {
+  id          Int       @id @default(autoincrement())
+  postId      Int
+  categoriaId Int
+  post        Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  categoria   Categoria @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, categoriaId])
+  @@map("post_categorias")
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement())
+  nome      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  posts     PostTag[]
+
+  @@map("tags")
+}
+
+model PostTag {
+  id     Int  @id @default(autoincrement())
+  postId Int
+  tagId  Int
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, tagId])
+  @@map("post_tags")
+}
+
+model Pauta {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  assunto   String
+  resumo    String   @db.Text
+  fontes    Json     // Array de {nome: string, url: string}
+  lida      Boolean  @default(false) // Indica se a pauta foi visualizada
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("pautas")
+  @@index([createdAt])
+  @@index([lida])
+  @@index([userId])
+}
+
+model Fonte {
+  id        Int        @id @default(autoincrement())
+  userId    String
+  titulo    String
+  url       String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feedItems FeedItem[]
+
+  @@map("fontes")
+  @@index([url])
+  @@index([userId])
+}
+
+model FeedItem {
+  id             Int       @id @default(autoincrement())
+  fonteId        Int
+  titulo         String
+  url            String    @unique // URL única para evitar duplicatas
+  chamada        String?   @db.Text // Resumo/chamada (opcional)
+  imagemUrl      String?   // URL da imagem de capa (opcional)
+  dataPublicacao DateTime? // Data de publicação da notícia (se disponível)
+  lida           Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  fonte          Fonte     @relation(fields: [fonteId], references: [id], onDelete: Cascade)
+
+  @@map("feed_items")
+  @@index([fonteId])
+  @@index([createdAt])
+  @@index([lida])
+  @@index([dataPublicacao])
+}
