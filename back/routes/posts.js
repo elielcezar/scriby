@@ -263,17 +263,11 @@ router.get('/admin/posts', authenticateToken, async (req, res, next) => {
         console.log('Recebendo requisição GET /admin/posts (ADMIN)');
         console.log('Query params:', req.query);
 
-        // Criar objeto de filtro (SEM filtro de status - retorna todos)
-        // Filtrar apenas posts do usuário logado (ou todos se for admin)
+        // Filtrar apenas posts do usuário logado
         const filtro = {
-            userId: req.user.role === 'ADMIN' ? undefined : req.user.id
+            userId: req.user.id
         };
         
-        // Se for admin e quiser ver todos os posts, remover filtro de userId
-        if (req.user.role === 'ADMIN' && req.query.allUsers === 'true') {
-            delete filtro.userId;
-        }
-
         // Filtro por status (opcional para admin)
         if (req.query.status) {
             filtro.status = req.query.status;
@@ -1116,7 +1110,9 @@ router.post('/posts/gerar-de-prompt', authenticateToken, async (req, res, next) 
         console.log(`✅ Notícia gerada em português`);
 
         // Buscar categorias disponíveis para categorização automática
-        const categoriasDisponiveis = await prisma.categoria.findMany();
+        const categoriasDisponiveis = await prisma.categoria.findMany({
+            where: { userId: req.user.id }
+        });
 
         // Preparar categorias no formato esperado pela IA
         const categoriasFormatadas = categoriasDisponiveis.map(cat => ({
@@ -1162,13 +1158,21 @@ router.post('/posts/gerar-de-prompt', authenticateToken, async (req, res, next) 
             try {
                 // Tentar encontrar tag existente
                 let tag = await prisma.tag.findUnique({
-                    where: { nome: tagNome }
+                    where: {
+                        userId_nome: {
+                            userId: req.user.id,
+                            nome: tagNome
+                        }
+                    }
                 });
 
                 // Se não existe, criar
                 if (!tag) {
                     tag = await prisma.tag.create({
-                        data: { nome: tagNome }
+                        data: {
+                            userId: req.user.id,
+                            nome: tagNome
+                        }
                     });
                     console.log(`   ✅ Tag criada: ${tagNome}`);
                 }

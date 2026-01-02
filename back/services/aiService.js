@@ -546,7 +546,7 @@ FONTE: ${fonteTitulo}
 URL BASE: ${baseUrl}
 
 CONTEÚDO DA PÁGINA (extraído via Jina AI Reader):
-${conteudoJina.substring(0, 15000)}
+${conteudoJina.substring(0, 30000)}
 
 TAREFA:
 Analise o conteúdo acima e extraia as ${limite} notícias mais recentes encontradas na página.
