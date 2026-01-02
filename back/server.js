@@ -6,7 +6,7 @@ import postsRoutes from './routes/posts.js';
 import loginRoutes from './routes/login.js';
 import categoriasRoutes from './routes/categorias.js';
 import tagsRoutes from './routes/tags.js';
-import pautasRoutes from './routes/pautas.js';
+
 import feedRoutes from './routes/feed.js';
 import fontesRoutes from './routes/fontes.js';
 import uploadRoutes from './routes/upload.js';
@@ -24,7 +24,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Configuração CORS - aceitar múltiplas origens
-const allowedOrigins = process.env.FRONTEND_URL 
+const allowedOrigins = process.env.FRONTEND_URL
     ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
     : ['*'];
 
@@ -57,9 +57,9 @@ app.use(cors({
 
 // Rota de health check
 app.get('/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'ok', 
-        message: 'CMS News API - Servidor funcionando',
+    res.status(200).json({
+        status: 'ok',
+        message: 'Scriby API - Servidor funcionando',
         timestamp: new Date().toISOString()
     });
 });
@@ -70,7 +70,7 @@ app.use('/api', usuariosRoutes);
 app.use('/api', postsRoutes);
 app.use('/api', categoriasRoutes);
 app.use('/api', tagsRoutes);
-app.use('/api', pautasRoutes);
+
 app.use('/api', feedRoutes);
 app.use('/api', fontesRoutes);
 app.use('/api', uploadRoutes);
@@ -97,12 +97,12 @@ app.listen(PORT, () => {
     console.log(`📍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🌐 Frontend permitido: ${process.env.FRONTEND_URL || 'Todos (*)'}`);
     console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-    console.log(`📡 API Base URL: http://localhost:${PORT}/api\n`);    
+    console.log(`📡 API Base URL: http://localhost:${PORT}/api\n`);
 
     console.log('🔍 DEBUG - Variáveis de Ambiente:');
-        console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'CONFIGURADO ✅' : 'NÃO CONFIGURADO ❌');
-        console.log('AWS_REGION:', process.env.AWS_REGION);
-        console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
-        console.log('PORT:', process.env.PORT);
-        console.log('----------------------------\n');
+    console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'CONFIGURADO ✅' : 'NÃO CONFIGURADO ❌');
+    console.log('AWS_REGION:', process.env.AWS_REGION);
+    console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
+    console.log('PORT:', process.env.PORT);
+    console.log('----------------------------\n');
 });

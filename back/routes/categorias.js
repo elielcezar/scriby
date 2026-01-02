@@ -2,7 +2,7 @@ import express from 'express';
 import prisma from '../config/prisma.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { validate, categoriaSchema } from '../middleware/validation.js';
-import { ConflictError } from '../utils/errors.js';
+import { ConflictError, NotFoundError } from '../utils/errors.js';
 
 const router = express.Router();
 
@@ -19,9 +19,22 @@ router.post('/categorias', authenticateToken, validate(categoriaSchema), async (
             });
         }
 
-        // Criar categoria
+        // Verificar se já existe categoria com mesmo nome para este usuário
+        const existente = await prisma.categoria.findFirst({
+            where: {
+                userId: req.user.id,
+                nome: nome
+            }
+        });
+
+        if (existente) {
+            throw new ConflictError('Categoria já existe');
+        }
+
+        // Criar categoria associada ao usuário
         const response = await prisma.categoria.create({
             data: {
+                userId: req.user.id,
                 nome
             }
         });
@@ -33,12 +46,15 @@ router.post('/categorias', authenticateToken, validate(categoriaSchema), async (
     }
 })
 
-// Lista categorias (público - necessário para exibir no site)
-router.get('/categorias', async (req, res, next) => {
+// Lista categorias do usuário logado (protegido)
+router.get('/categorias', authenticateToken, async (req, res, next) => {
     try {
         console.log('Recebendo requisição GET /categorias');
 
         const categorias = await prisma.categoria.findMany({
+            where: {
+                userId: req.user.id
+            },
             orderBy: {
                 createdAt: 'desc'
             }
@@ -51,12 +67,15 @@ router.get('/categorias', async (req, res, next) => {
     }
 });
 
-// Obter categoria por ID (público ou protegido, dependendo do uso)
-router.get('/categorias/:id', async (req, res, next) => {
+// Obter categoria por ID (protegido)
+router.get('/categorias/:id', authenticateToken, async (req, res, next) => {
     try {
         const { id } = req.params;
-        const categoria = await prisma.categoria.findUnique({
-            where: { id: parseInt(id) }
+        const categoria = await prisma.categoria.findFirst({
+            where: {
+                id: parseInt(id),
+                userId: req.user.id
+            }
         });
 
         if (!categoria) {
@@ -82,6 +101,18 @@ router.put('/categorias/:id', authenticateToken, validate(categoriaSchema), asyn
             });
         }
 
+        // Verificar se categoria existe e pertence ao usuário
+        const categoriaExistente = await prisma.categoria.findFirst({
+            where: {
+                id: parseInt(id),
+                userId: req.user.id
+            }
+        });
+
+        if (!categoriaExistente) {
+            throw new NotFoundError('Categoria não encontrada');
+        }
+
         const categoria = await prisma.categoria.update({
             where: { id: parseInt(id) },
             data: {
@@ -100,6 +131,18 @@ router.delete('/categorias/:id', authenticateToken, async (req, res, next) => {
     try {
         const { id } = req.params;
 
+        // Verificar se categoria existe e pertence ao usuário
+        const categoria = await prisma.categoria.findFirst({
+            where: {
+                id: parseInt(id),
+                userId: req.user.id
+            }
+        });
+
+        if (!categoria) {
+            throw new NotFoundError('Categoria não encontrada');
+        }
+
         await prisma.categoria.delete({
             where: { id: parseInt(id) }
         });
@@ -111,4 +154,3 @@ router.delete('/categorias/:id', authenticateToken, async (req, res, next) => {
 });
 
 export default router;
-

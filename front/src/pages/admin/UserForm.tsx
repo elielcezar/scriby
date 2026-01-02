@@ -27,7 +27,7 @@ export default function UserForm() {
   // Buscar usuário se for edição
   const { data: user, isLoading: isLoadingUser } = useQuery({
     queryKey: ['user', id],
-    queryFn: () => usersService.getById(Number(id)),
+    queryFn: () => usersService.getById(id!),
     enabled: isEdit && !!id,
   });
 
@@ -64,8 +64,8 @@ export default function UserForm() {
 
   // Mutation para atualizar
   const updateMutation = useMutation({
-    mutationFn: (data: Partial<UserFormData>) => 
-      usersService.update(Number(id), data),
+    mutationFn: (data: Partial<UserFormData>) =>
+      usersService.update(id!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['user', id] });
@@ -114,7 +114,7 @@ export default function UserForm() {
         name: formData.name,
         email: formData.email,
       };
-      
+
       if (formData.password && formData.password.length > 0) {
         dataToSend.password = formData.password;
       }
@@ -227,9 +227,9 @@ export default function UserForm() {
                 {(isLoading || isLoadingUser) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isEdit ? 'Salvar Alterações' : 'Criar Usuário'}
               </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => navigate('/admin/usuarios')}
                 disabled={isLoading || isLoadingUser}
               >

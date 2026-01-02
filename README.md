@@ -1,6 +1,6 @@
 # 📰 Scriby - Sistema de Gerenciamento de Notícias com IA
 
-> CMS moderno e multilíngue para publicação de notícias sobre música eletrônica, potencializado por Inteligência Artificial
+> CMS moderno para publicação de notícias, potencializado por Inteligência Artificial
 
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript)](https://www.typescriptlang.org/)
@@ -13,16 +13,14 @@
 
 ## 🎯 **Visão Geral**
 
-O **Scriby** é uma plataforma completa de gerenciamento de conteúdo especializada em notícias de música eletrônica, que combina automação e inteligência artificial para otimizar todo o fluxo de trabalho jornalístico:
+O **Scriby** é uma plataforma completa de gerenciamento de conteúdo, que combina automação e inteligência artificial para otimizar todo o fluxo de trabalho jornalístico:
 
 ### **🌟 Diferenciais**
 
 - 🤖 **Geração Automática de Pautas**: IA analisa fontes RSS e sugere tópicos relevantes
-- 🌍 **Conteúdo Multilíngue**: Geração automática em **Português, Inglês e Espanhol**
 - ✍️ **Redação com IA**: OpenAI GPT-4o-mini cria artigos completos a partir de pautas
-- 🔄 **Workflow Inteligente**: Da sugestão de pauta até a publicação em 3 idiomas
+- 🔄 **Workflow Inteligente**: Da sugestão de pauta até a publicação
 - 🎨 **Interface Moderna**: UI construída com Shadcn/UI e TailwindCSS
-- 📱 **Totalmente Responsivo**: Funciona perfeitamente em desktop, tablet e mobile
 
 ---
 
@@ -83,22 +81,19 @@ cms-news/
 
 ## ⚡ **Principais Features**
 
-### 1️⃣ **Sistema de Sugestões de Pauta (AI-Powered)**
+### 1⃣️ **Leitor de Feed (AI-Powered)**
 
-📍 **Arquivo**: `front/src/pages/admin/Pautas.tsx`
+📍 **Arquivo**: `front/src/pages/admin/Feed.tsx`
 
-- 🔍 **Busca Automatizada**: Integração com n8n para monitorar fontes RSS
-- 🤖 **Análise Inteligente**: IA usa Jina AI Reader para extrair e analisar conteúdo
-- 💡 **Sugestões Contextualizadas**: OpenAI gera pautas relevantes com:
-  - Assunto chamativo
-  - Resumo conciso
-  - Fontes relacionadas
-- ✅ **Gerenciamento**: Marcar como lida, visualizar detalhes, excluir
-- 🔄 **Conversão Rápida**: Transformar pauta em post completo com um clique
+- 🔍 **Leitura de Fontes RSS**: Extrai notícias de fontes cadastradas
+- 🤖 **Análise Inteligente**: IA usa Jina AI Reader para extrair conteúdo
+- � **Feed Organizado**: Visualize notícias de todas as fontes em um só lugar
+- ✅ **Gerenciamento**: Marcar como lida, visualizar detalhes
+- 🔄 **Conversão Rápida**: Transformar notícia em post completo com IA
 
 **Fluxo:**
 ```
-Fontes RSS → Jina AI (extração) → OpenAI (análise) → Sugestões de Pauta
+Fontes RSS → Jina AI (extração) → Leitor de Feed → Gerar Post com IA
 ```
 
 ### 2️⃣ **Geração de Conteúdo**
@@ -298,14 +293,6 @@ POST   /api/usuarios                 # Criar usuário
 GET    /api/usuarios/me              # Perfil atual
 ```
 
-### **Pautas**
-```
-GET    /api/pautas                   # Listar pautas
-POST   /api/pautas/gerar             # Gerar via IA
-POST   /api/pautas/:id/convert       # Converter em post
-PUT    /api/pautas/:id/read          # Marcar como lida
-DELETE /api/pautas/:id               # Excluir
-```
 
 ### **Posts**
 ```
@@ -356,14 +343,7 @@ model PostTranslation {
   post        Post     @relation(...)
 }
 
-model Pauta {
-  id        Int      @id @default(autoincrement())
-  assunto   String
-  resumo    String   @db.Text
-  fontes    Json     // Array de {nome, url}
-  lida      Boolean  @default(false)
-  createdAt DateTime @default(now())
-}
+
 
 model Fonte {
   id          Int      @id @default(autoincrement())
@@ -378,19 +358,7 @@ model Fonte {
 
 ## 🤖 **Como Funciona a IA**
 
-### **1. Geração de Pautas**
-
-**Função**: `generatePautasWithAI()` em `back/services/aiService.js`
-
-1. Busca conteúdo das fontes RSS usando **Jina AI Reader**
-2. Envia para **OpenAI GPT-4o-mini** com prompt especializado
-3. IA analisa e identifica notícias relevantes dos últimos 7 dias
-4. Retorna array de sugestões estruturadas
-
-**Prompt resumido:**
-> "Você é um editor de notícias de música eletrônica. Analise estes conteúdos e sugira pautas interessantes com assunto, resumo e fontes."
-
-### **2. Geração de Conteúdo**
+### **1. Geração de Conteúdo**
 
 **Função**: `generateNewsWithAI()` em `back/services/aiService.js`
 

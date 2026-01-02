@@ -13,6 +13,7 @@ import NotFound from "./pages/NotFound";
 import AdminLogin from "./pages/admin/Login";
 import Register from "./pages/admin/Register";
 import { AdminLayout } from "./components/admin/AdminLayout";
+import { AdminOnlyRoute } from "./components/admin/AdminOnlyRoute";
 import Dashboard from "./pages/admin/Dashboard";
 import Posts from "./pages/admin/Posts";
 import PostForm from "./pages/admin/PostForm";
@@ -20,7 +21,7 @@ import Categorias from "./pages/admin/Categorias";
 import CategoriaForm from "./pages/admin/CategoriaForm";
 import Tags from "./pages/admin/Tags";
 import TagForm from "./pages/admin/TagForm";
-import Pautas from "./pages/admin/Pautas";
+
 import Feed from "./pages/admin/Feed";
 import Fontes from "./pages/admin/Fontes";
 import FonteForm from "./pages/admin/FonteForm";
@@ -42,10 +43,10 @@ const App = () => (
               <Routes>
                 {/* Rota raiz - detecta e redireciona para idioma */}
                 <Route path="/" element={<LanguageRedirect />} />
-                
+
                 {/* Rotas públicas com idioma */}
                 <Route path="/:lang" element={<Index />} />
-                
+
                 {/* Rotas de admin (sem idioma na URL) */}
                 <Route path="/admin/login" element={<AdminLogin />} />
                 <Route path="/admin/register" element={<Register />} />
@@ -55,7 +56,7 @@ const App = () => (
                   <Route path="posts" element={<Posts />} />
                   <Route path="posts/novo" element={<PostForm />} />
                   <Route path="posts/:id/editar" element={<PostForm />} />
-                  <Route path="pautas" element={<Pautas />} />
+
                   <Route path="feed" element={<Feed />} />
                   <Route path="fontes" element={<Fontes />} />
                   <Route path="fontes/novo" element={<FonteForm />} />
@@ -66,11 +67,11 @@ const App = () => (
                   <Route path="tags" element={<Tags />} />
                   <Route path="tags/novo" element={<TagForm />} />
                   <Route path="tags/:id/editar" element={<TagForm />} />
-                  <Route path="usuarios" element={<Users />} />
-                  <Route path="usuarios/novo" element={<UserForm />} />
-                  <Route path="usuarios/:id/editar" element={<UserForm />} />
+                  <Route path="usuarios" element={<AdminOnlyRoute><Users /></AdminOnlyRoute>} />
+                  <Route path="usuarios/novo" element={<AdminOnlyRoute><UserForm /></AdminOnlyRoute>} />
+                  <Route path="usuarios/:id/editar" element={<AdminOnlyRoute><UserForm /></AdminOnlyRoute>} />
                 </Route>
-                
+
                 {/* 404 */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

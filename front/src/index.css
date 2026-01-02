@@ -1,6 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,100..900;1,100..900&display=swap');
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
@@ -8,73 +9,143 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100% /* hsl(0 50% 0%) */;
-    /*--foreground: 222.2 84% 4.9%*/; 
+    --background: 0 0% 100%
+      /* hsl(0 50% 0%) */
+    ;
+    /*--foreground: 222.2 84% 4.9%*/
+    ;
     --foreground: var(--oceanic);
-    
-    --primary: 204 57% 15% /* hsl(204 57% 15%) */;
-    --primary-foreground: 210 40% 98% /* hsl(210 40% 98%) */;
 
-    --secondary: 210 40% 96.1% /* hsl(210 40% 96.1%) */;
-    --secondary-foreground: 222.2 47.4% 11.2% /* hsl(222.2 47.4% 11.2%) */;
+    --primary: 204 57% 15%
+      /* hsl(204 57% 15%) */
+    ;
+    --primary-foreground: 210 40% 98%
+      /* hsl(210 40% 98%) */
+    ;
 
-    --oceanic: 204 57% 15% /* hsl(204 57% 15%) */;
-    --oceanic-foreground: 0 0% 100% /* hsl(0 0% 100%) */;
-    
-    --blood: 6 97% 28% /* hsl(6 97% 28%) */;
-    --blood-foreground: 0 0% 100% /* hsl(0 0% 100%) */;
+    --secondary: 210 40% 96.1%
+      /* hsl(210 40% 96.1%) */
+    ;
+    --secondary-foreground: 222.2 47.4% 11.2%
+      /* hsl(222.2 47.4% 11.2%) */
+    ;
 
-    --card: 0 0% 100% /* hsl(0 0% 100%) /* background dos blocos de conteudo */;    
-    /*--card-foreground: 222.2 84% 4.9% /* hsl(222.2 84% 4.9%) /* texto dos blocos de conteudo */;
+    --oceanic: 204 57% 15%
+      /* hsl(204 57% 15%) */
+    ;
+    --oceanic-foreground: 0 0% 100%
+      /* hsl(0 0% 100%) */
+    ;
+
+    --blood: 6 97% 28%
+      /* hsl(6 97% 28%) */
+    ;
+    --blood-foreground: 0 0% 100%
+      /* hsl(0 0% 100%) */
+    ;
+
+    --card: 0 0% 100%
+      /* hsl(0 0% 100%) /* background dos blocos de conteudo */
+    ;
+    /*--card-foreground: 222.2 84% 4.9% /* hsl(222.2 84% 4.9%) /* texto dos blocos de conteudo */
+    ;
     --card-foreground: var(--oceanic);
 
-    --popover: 0 0% 100% /* hsl(0 0% 100%) */;    
+    --popover: 0 0% 100%
+      /* hsl(0 0% 100%) */
+    ;
     --popover-foreground: var(--oceanic);
 
-    --muted: 210 40% 96.1% /* hsl(210 40% 96.1%) */;
-    --muted-foreground: 215.4 16.3% 46.9% /* hsl(215.4 16.3% 46.9%) */;
+    --muted: 210 40% 96.1%
+      /* hsl(210 40% 96.1%) */
+    ;
+    --muted-foreground: 215.4 16.3% 46.9%
+      /* hsl(215.4 16.3% 46.9%) */
+    ;
 
-    --accent: 210 40% 96.1% /* hsl(210 40% 96.1%) */;
-    /*--accent-foreground: 222.2 47.4% 11.2% /* hsl(222.2 47.4% 11.2%) */;
+    --accent: 210 40% 96.1%
+      /* hsl(210 40% 96.1%) */
+    ;
+    /*--accent-foreground: 222.2 47.4% 11.2% /* hsl(222.2 47.4% 11.2%) */
+    ;
     --accent-foreground: var(--oceanic);
 
-    --destructive: 0 84.2% 60.2% /* hsl(0 84.2% 60.2%) */;
-    --destructive-foreground: 210 40% 98% /* hsl(210 40% 98%) */;
+    --destructive: 0 84.2% 60.2%
+      /* hsl(0 84.2% 60.2%) */
+    ;
+    --destructive-foreground: 210 40% 98%
+      /* hsl(210 40% 98%) */
+    ;
 
-    --border: 214.3 31.8% 91.4% /* hsl(214.3 31.8% 91.4%) */;
-    --input: 214.3 31.8% 91.4% /* hsl(214.3 31.8% 91.4%) */;
-    /*--ring: 222.2 84% 4.9% /* hsl(222.2 84% 4.9%) */;
+    --border: 214.3 31.8% 91.4%
+      /* hsl(214.3 31.8% 91.4%) */
+    ;
+    --input: 214.3 31.8% 91.4%
+      /* hsl(214.3 31.8% 91.4%) */
+    ;
+    /*--ring: 222.2 84% 4.9% /* hsl(222.2 84% 4.9%) */
+    ;
     --ring: var(--oceanic);
 
     --radius: 0.5rem;
 
-    /*--sidebar-background: 0 0% 98% /* hsl(0 0% 98%) */;
-    --sidebar-background: 214 57% 15% /* hsl(214 57% 15%) */;
+    /*--sidebar-background: 0 0% 98% /* hsl(0 0% 98%) */
+    ;
+    --sidebar-background: 214 57% 15%
+      /* hsl(214 57% 15%) */
+    ;
 
-    /*--sidebar-foreground: 240 5.3% 26.1% /* hsl(240 5.3% 26.1%) */;
-    --sidebar-foreground: 122 0% 100% /* hsl(122 0% 100%) /* texto dos itens da sidebar*/;    
+    /*--sidebar-foreground: 240 5.3% 26.1% /* hsl(240 5.3% 26.1%) */
+    ;
+    --sidebar-foreground: 122 0% 100%
+      /* hsl(122 0% 100%) /* texto dos itens da sidebar*/
+    ;
 
-    /*--sidebar-accent: 240 4.8% 95.9% /* hsl(240 4.8% 95.9%) */;
-    --sidebar-accent: 222.2 84% 4.9% /* hsl(204 57% 15%) /* hover no background dos itens da sidebar*/;
+    /*--sidebar-accent: 240 4.8% 95.9% /* hsl(240 4.8% 95.9%) */
+    ;
+    --sidebar-accent: 222.2 84% 4.9%
+      /* hsl(204 57% 15%) /* hover no background dos itens da sidebar*/
+    ;
 
-    /*--sidebar-accent-foreground: 240 5.9% 10% /* hsl(240 5.9% 10%) */;
-    --sidebar-accent-foreground: 0 0% 100% /* hsl(0 0% 100%) /* hover no texto dos itens da sidebar*/;
+    /*--sidebar-accent-foreground: 240 5.9% 10% /* hsl(240 5.9% 10%) */
+    ;
+    --sidebar-accent-foreground: 0 0% 100%
+      /* hsl(0 0% 100%) /* hover no texto dos itens da sidebar*/
+    ;
 
-    --sidebar-border: 220 13% 91% /* hsl(220 13% 91%) /* borda dos itens da sidebar*/;    
+    --sidebar-border: 220 13% 91%
+      /* hsl(220 13% 91%) /* borda dos itens da sidebar*/
+    ;
 
-    --sidebar-ring: 217.2 91.2% 59.8% /* hsl(217.2 91.2% 59.8%) */;
-    /*--sidebar-primary: 240 5.9% 10% /* hsl(240 5.9% 10%) */;
-    --sidebar-primary: 217.2 91.2% 59.8% /* hsl(217.2 91.2% 59.8%) */;
-    /*--sidebar-primary-foreground: 0 0% 98% /* hsl(0 0% 98%) */;
-    --sidebar-primary-foreground: 217.2 91.2% 59.8% /* hsl(217.2 91.2% 59.8%) */;
+    --sidebar-ring: 217.2 91.2% 59.8%
+      /* hsl(217.2 91.2% 59.8%) */
+    ;
+    /*--sidebar-primary: 240 5.9% 10% /* hsl(240 5.9% 10%) */
+    ;
+    --sidebar-primary: 217.2 91.2% 59.8%
+      /* hsl(217.2 91.2% 59.8%) */
+    ;
+    /*--sidebar-primary-foreground: 0 0% 98% /* hsl(0 0% 98%) */
+    ;
+    --sidebar-primary-foreground: 217.2 91.2% 59.8%
+      /* hsl(217.2 91.2% 59.8%) */
+    ;
   }
 
   .dark {
-    --background: 222.2 84% 4.9% /* hsl(222.2 84% 4.9%) /* background da pagina*/;
-    --foreground: 210 40% 98% /* hsl(210 40% 98%) /* cor de alguns icones*/;
+    --background: 222.2 84% 4.9%
+      /* hsl(222.2 84% 4.9%) /* background da pagina*/
+    ;
+    --foreground: 210 40% 98%
+      /* hsl(210 40% 98%) /* cor de alguns icones*/
+    ;
 
-    --card: 222.2 84% 4.9% /* hsl(222.2 84% 4.9%) /* background dos blocos de conteudo*/;
-    --card-foreground: 210 40% 98% /* hsl(210 40% 98%) /* texto dos blocos de conteudo*/;
+    --card: 222.2 84% 4.9%
+      /* hsl(222.2 84% 4.9%) /* background dos blocos de conteudo*/
+    ;
+    --card-foreground: 210 40% 98%
+      /* hsl(210 40% 98%) /* texto dos blocos de conteudo*/
+    ;
 
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
@@ -114,20 +185,28 @@ All colors MUST be HSL.
   }
 
   html {
-    font-size: 1.15rem; /* Aumenta tamanho base de todos os textos */
+    font-size: 1.15rem;
+    /* Aumenta tamanho base de todos os textos */
   }
 
   body {
-    @apply bg-background text-foreground;    
+    @apply bg-background text-foreground;
   }
 
-  h1, h2{
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply text-primary;
+    font-family: 'Noto Serif', serif !important;
   }
 }
 
 /* Estilos para embeds responsivos genéricos */
 @layer components {
+
   /* Container genérico de embed */
   .embed-container {
     margin: 1.5rem auto;
@@ -142,7 +221,7 @@ All colors MUST be HSL.
   }
 
   /* Estilos específicos por plataforma */
-  
+
   /* YouTube */
   .embed-youtube iframe {
     max-width: 100%;
@@ -171,7 +250,7 @@ All colors MUST be HSL.
     background: #FFF !important;
     border: 0 !important;
     border-radius: 3px !important;
-    box-shadow: 0 0 1px 0 rgba(0,0,0,0.5), 0 1px 10px 0 rgba(0,0,0,0.15) !important;
+    box-shadow: 0 0 1px 0 rgba(0, 0, 0, 0.5), 0 1px 10px 0 rgba(0, 0, 0, 0.15) !important;
     margin: 1px auto !important;
     max-width: 540px !important;
     min-width: 326px !important;

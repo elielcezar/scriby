@@ -24,8 +24,9 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   posts     Post[]
-  pautas    Pauta[]
   fontes    Fonte[]
+  categorias Categoria[]
+  tags       Tag[]
 
   @@map("users")
 }
@@ -62,12 +63,16 @@ enum PostStatus {
 
 model Categoria {
   id        Int              @id @default(autoincrement())
+  userId    String
   nome      String
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   posts     PostCategoria[]
 
+  @@unique([userId, nome])
   @@map("categorias")
+  @@index([userId])
 }
 
 model PostCategoria {
@@ -83,12 +88,16 @@ model PostCategoria {
 
 model Tag {
   id        Int       @id @default(autoincrement())
-  nome      String    @unique
+  userId    String
+  nome      String
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   posts     PostTag[]
 
+  @@unique([userId, nome])
   @@map("tags")
+  @@index([userId])
 }
 
 model PostTag {
@@ -102,22 +111,7 @@ model PostTag {
   @@map("post_tags")
 }
 
-model Pauta {
-  id        Int      @id @default(autoincrement())
-  userId    String
-  assunto   String
-  resumo    String   @db.Text
-  fontes    Json     // Array de {nome: string, url: string}
-  lida      Boolean  @default(false) // Indica se a pauta foi visualizada
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("pautas")
-  @@index([createdAt])
-  @@index([lida])
-  @@index([userId])
-}
 
 model Fonte {
   id        Int        @id @default(autoincrement())

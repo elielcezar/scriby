@@ -6,19 +6,7 @@ export interface Tag {
   updatedAt: string;
 }
 
-// Pauta (Sugestão de Pauta gerada por IA)
-export interface Pauta {
-  id: number;
-  assunto: string;
-  resumo: string;
-  fontes: {
-    nome: string;
-    url: string;
-  }[];
-  lida: boolean; // Indica se a pauta foi visualizada
-  createdAt: string;
-  updatedAt: string;
-}
+
 
 // Fonte (Feed de notícias para IA)
 export interface Fonte {

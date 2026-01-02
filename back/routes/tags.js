@@ -2,7 +2,7 @@ import express from 'express';
 import prisma from '../config/prisma.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { validate, tagSchema } from '../middleware/validation.js';
-import { ConflictError } from '../utils/errors.js';
+import { ConflictError, NotFoundError } from '../utils/errors.js';
 
 const router = express.Router();
 
@@ -12,9 +12,12 @@ router.post('/tags', authenticateToken, validate(tagSchema), async (req, res, ne
         console.log('Recebendo requisição POST /tags');
         const { nome } = req.body;
 
-        // Verificar se tag já existe
-        const existingTag = await prisma.tag.findUnique({
-            where: { nome }
+        // Verificar se tag já existe para este usuário
+        const existingTag = await prisma.tag.findFirst({
+            where: {
+                userId: req.user.id,
+                nome: nome
+            }
         });
 
         if (existingTag) {
@@ -22,7 +25,10 @@ router.post('/tags', authenticateToken, validate(tagSchema), async (req, res, ne
         }
 
         const response = await prisma.tag.create({
-            data: { nome }
+            data: {
+                userId: req.user.id,
+                nome
+            }
         });
 
         console.log('Tag criada:', response);
@@ -32,12 +38,15 @@ router.post('/tags', authenticateToken, validate(tagSchema), async (req, res, ne
     }
 })
 
-// Lista tags (público - necessário para exibir no site)
-router.get('/tags', async (req, res, next) => {
+// Lista tags (protegido - filtra por usuário)
+router.get('/tags', authenticateToken, async (req, res, next) => {
     try {
         console.log('Recebendo requisição GET /tags');
 
-        const filtro = {};
+        const filtro = {
+            userId: req.user.id
+        };
+
         if (req.query.nome) {
             filtro.nome = { contains: req.query.nome };
         }
@@ -62,6 +71,18 @@ router.put('/tags/:id', authenticateToken, validate(tagSchema), async (req, res,
         const { id } = req.params;
         const { nome } = req.body;
 
+        // Verificar se tag existe e pertence ao usuário
+        const tagExistente = await prisma.tag.findFirst({
+            where: {
+                id: parseInt(id),
+                userId: req.user.id
+            }
+        });
+
+        if (!tagExistente) {
+            throw new NotFoundError('Tag não encontrada');
+        }
+
         const tag = await prisma.tag.update({
             where: { id: parseInt(id) },
             data: { nome }
@@ -78,6 +99,18 @@ router.delete('/tags/:id', authenticateToken, async (req, res, next) => {
     try {
         const { id } = req.params;
 
+        // Verificar se tag existe e pertence ao usuário
+        const tag = await prisma.tag.findFirst({
+            where: {
+                id: parseInt(id),
+                userId: req.user.id
+            }
+        });
+
+        if (!tag) {
+            throw new NotFoundError('Tag não encontrada');
+        }
+
         await prisma.tag.delete({
             where: { id: parseInt(id) }
         });
@@ -89,4 +122,3 @@ router.delete('/tags/:id', authenticateToken, async (req, res, next) => {
 });
 
 export default router;
-

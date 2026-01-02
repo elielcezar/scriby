@@ -31,7 +31,7 @@ export default function Dashboard() {
     if (posts && users) {
       const published = posts.filter(p => p.status === 'PUBLICADO').length;
       const featured = posts.filter(p => p.destaque).length;
-      
+
       setStats({
         totalPosts: posts.length,
         publishedPosts: published,
@@ -69,13 +69,7 @@ export default function Dashboard() {
       value: stats.featuredPosts,
       icon: Star,
       description: 'Posts marcados como destaque',
-    },
-    {
-      title: 'Total de Usuários',
-      value: stats.totalUsers,
-      icon: Users,
-      description: 'Usuários cadastrados',
-    },
+    }
   ];
 
   return (
@@ -87,7 +81,7 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-3">
         {statCards.map((stat) => (
           <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

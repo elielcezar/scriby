@@ -103,14 +103,7 @@ export const tagSchema = z.object({
   nome: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
 });
 
-export const pautaCreateSchema = z.object({
-  assunto: z.string().min(3, 'Assunto deve ter no mínimo 3 caracteres'),
-  resumo: z.string().min(10, 'Resumo deve ter no mínimo 10 caracteres'),
-  fontes: z.array(z.object({
-    nome: z.string().min(1, 'Nome da fonte é obrigatório'),
-    url: z.string().url('URL inválida')
-  })).min(1, 'Pelo menos uma fonte é obrigatória'),
-});
+
 
 export const fonteCreateSchema = z.object({
   titulo: z.string().min(3, 'Título deve ter no mínimo 3 caracteres'),

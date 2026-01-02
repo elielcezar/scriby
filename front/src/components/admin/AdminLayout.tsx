@@ -14,20 +14,23 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 
-import { FileText, Users, LogOut, LayoutDashboard, User, Tags, FolderOpen, Lightbulb, Rss, Newspaper } from 'lucide-react';
+import { FileText, Users, LogOut, LayoutDashboard, User, Tags, FolderOpen, Rss, Newspaper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 
-
-  const menuItems = [
+const menuItems: Array<{
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  adminOnly?: boolean;
+}> = [
     { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
     { title: 'Posts', url: '/admin/posts', icon: FileText },
     { title: 'Leitor de Feed', url: '/admin/feed', icon: Newspaper },
-    { title: 'Sugestões de Pauta', url: '/admin/pautas', icon: Lightbulb },
     { title: 'Fontes', url: '/admin/fontes', icon: Rss },
     { title: 'Categorias', url: '/admin/categorias', icon: FolderOpen },
     { title: 'Tags', url: '/admin/tags', icon: Tags },
-    { title: 'Usuários', url: '/admin/usuarios', icon: Users },
+    { title: 'Usuários', url: '/admin/usuarios', icon: Users, adminOnly: true },
   ];
 
 export function AdminLayout() {
@@ -62,31 +65,33 @@ export function AdminLayout() {
         <Sidebar>
           <SidebarContent>
             <div className="p-4 bg-slate-900 text-oceanic-foreground">
-              <h1 className="text-2xl font-bold text-white text-center py-4">CMS News</h1>
+              <h1 className="text-2xl font-bold text-white text-center py-4">Scriby</h1>
             </div>
 
             <SidebarGroup>
               <SidebarGroupLabel>Menu</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {menuItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild>
-                        <NavLink
-                          to={item.url}
-                          end={item.url === '/admin'}
-                          className={({ isActive }) =>
-                            isActive
-                              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                              : 'hover:bg-sidebar-accent/50'
-                          }
-                        >
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                  {menuItems
+                    .filter((item) => !item.adminOnly || user?.role === 'ADMIN')
+                    .map((item) => (
+                      <SidebarMenuItem key={item.title}>
+                        <SidebarMenuButton asChild>
+                          <NavLink
+                            to={item.url}
+                            end={item.url === '/admin'}
+                            className={({ isActive }) =>
+                              isActive
+                                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                                : 'hover:bg-sidebar-accent/50'
+                            }
+                          >
+                            <item.icon className="h-4 w-4" />
+                            <span>{item.title}</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -115,7 +120,8 @@ export function AdminLayout() {
         <main className="flex-1 flex flex-col">
           <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4">
             <SidebarTrigger />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium">Olá, {user?.name.split(' ')[0]}!</span>
               <ThemeToggle />
             </div>
           </header>
