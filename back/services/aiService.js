@@ -48,6 +48,85 @@ export async function fetchContentWithJinaAndMarkdown(url) {
 }
 
 /**
+ * Gera uma resposta de chat conversacional usando OpenAI
+ * @param {Object} params - Parâmetros
+ * @param {Array} params.messages - Histórico de mensagens [{role, content}]
+ * @param {string} params.contextContent - Conteúdo extra (ex: de uma URL) para dar contexto
+ * @returns {Promise<string>} - Resposta da IA
+ */
+export async function generateChatResponse({ messages, contextContent }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY não configurada no .env');
+  }
+
+  // Se houver contexto extra (Jina), adicionamos como uma mensagem de sistema no início ou injetamos
+  const apiMessages = [...messages];
+  
+  if (contextContent) {
+    apiMessages.unshift({
+      role: 'system',
+      content: `CONTEXTO DA FONTE:\n${contextContent.substring(0, 10000)}\n\nUse o contexto acima para ajudar o usuário. Se ele pedir para gerar o post, siga as diretrizes editoriais.`
+    });
+  }
+
+  // Mensagem de sistema padrão para manter a persona
+  apiMessages.unshift({
+    role: 'system',
+    content: `Você é um Jornalista Investigativo Sênior e assistente editorial do CMS Scriby.
+    Seu objetivo é ajudar o usuário a rascunhar, revisar e refinar notícias.
+    
+    DIRETRIZES:
+    - Seja profissional e direto.
+    - Se o usuário estiver satisfeito e pedir para gerar o post final, você DEVE retornar um objeto JSON no final da sua resposta, encapsulado em blocos de código \`\`\`json.
+    - O JSON deve ter: { "titulo": "...", "chamada": "...", "conteudo": "HTML..." }
+    - Siga sempre o estilo editorial do Scriby (densidade, negritos, subtítulos criativos).`
+  });
+
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: apiMessages,
+      temperature: 0.7,
+    });
+
+    const options = {
+      hostname: 'api.openai.com',
+      port: 443,
+      path: '/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          if (res.statusCode !== 200) {
+            reject(new Error(`OpenAI error: ${data}`));
+            return;
+          }
+          const response = JSON.parse(data);
+          resolve(response.choices[0].message.content);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+
+    req.on('error', (err) => reject(err));
+    req.write(postData);
+    req.end();
+  });
+}
+
+/**
  * Gera uma notícia usando IA (OpenAI ou similar)
  * @param {Object} params - Parâmetros
  * @param {string} params.assunto - Assunto da pauta

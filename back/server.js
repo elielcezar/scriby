@@ -10,6 +10,7 @@ import tagsRoutes from './routes/tags.js';
 import feedRoutes from './routes/feed.js';
 import fontesRoutes from './routes/fontes.js';
 import uploadRoutes from './routes/upload.js';
+import chatRoutes from './routes/chat.js';
 import sitemapRoutes from './routes/sitemap.js';
 import { errorHandler } from './utils/errors.js';
 
@@ -74,6 +75,7 @@ app.use('/api', tagsRoutes);
 app.use('/api', feedRoutes);
 app.use('/api', fontesRoutes);
 app.use('/api', uploadRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Rota de sitemap (sem prefixo /api)
 app.use('/', sitemapRoutes);
