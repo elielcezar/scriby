@@ -90,13 +90,9 @@ export const siteSchema = z.object({
   nome: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
 });
 
-// Schema para categoria com traduções
+// Schema para categoria
 export const categoriaSchema = z.object({
-  translations: z.object({
-    pt: z.string().min(2, 'Nome em PT deve ter no mínimo 2 caracteres'),
-    en: z.string().min(2, 'Nome em EN deve ter no mínimo 2 caracteres').optional(),
-    es: z.string().min(2, 'Nome em ES deve ter no mínimo 2 caracteres').optional(),
-  })
+  nome: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
 });
 
 export const tagSchema = z.object({

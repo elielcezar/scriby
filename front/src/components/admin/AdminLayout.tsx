@@ -69,7 +69,7 @@ export function AdminLayout() {
             </div>
 
             <SidebarGroup>
-              <SidebarGroupLabel>Menu</SidebarGroupLabel>
+              <SidebarGroupLabel className="font-noto-serif">Menu</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {menuItems
@@ -87,7 +87,7 @@ export function AdminLayout() {
                             }
                           >
                             <item.icon className="h-4 w-4" />
-                            <span>{item.title}</span>
+                            <span className="font-noto-serif text-[.9rem]">{item.title}</span>
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -96,10 +96,10 @@ export function AdminLayout() {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            <div className="mt-auto p-4 border-t border-sidebar-border space-y-2">
+            <div className="mt-auto px-2 py-4 border-t border-sidebar-border space-y-2">
               <Button
                 variant="ghost"
-                className="w-full justify-start hover:bg-oceanic hover:text-oceanic-foreground"
+                className="w-full justify-start hover:bg-oceanic hover:text-oceanic-foreground font-noto-serif text-[.9rem] p-2 mb-0 gap-0"
                 onClick={() => navigate('/admin/perfil')}
               >
                 <User className="h-4 w-4 mr-2" />
@@ -107,8 +107,9 @@ export function AdminLayout() {
               </Button>
               <Button
                 variant="ghost"
-                className="w-full justify-start hover:bg-oceanic hover:text-oceanic-foreground"
+                className="w-full justify-start hover:bg-oceanic hover:text-oceanic-foreground font-noto-serif text-[.9rem] p-2 mt-0 gap-0"
                 onClick={handleLogout}
+                style={{ marginTop: '0' }}
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Sair

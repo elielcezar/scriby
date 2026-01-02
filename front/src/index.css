@@ -1,20 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,100..900;1,100..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,100..900;1,100..900&display=swap');
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
 
-@layer base {
   :root {
-    --background: 0 0% 100%
-      /* hsl(0 50% 0%) */
-    ;
-    /*--foreground: 222.2 84% 4.9%*/
-    ;
-    --foreground: var(--oceanic);
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --font-noto-serif: 'Noto Serif', serif;
 
     --primary: 204 57% 15%
       /* hsl(204 57% 15%) */
@@ -177,7 +171,7 @@ All colors MUST be HSL.
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
-}
+
 
 @layer base {
   * {
@@ -206,6 +200,11 @@ All colors MUST be HSL.
 
 /* Estilos para embeds responsivos genéricos */
 @layer components {
+
+  /* Classe para aplicar fonte Noto Serif */
+  .font-noto-serif {
+    font-family: var(--font-noto-serif);
+  }
 
   /* Container genérico de embed */
   .embed-container {

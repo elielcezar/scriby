@@ -64,44 +64,103 @@ export async function generateNewsWithAI({ assunto, resumo, conteudos }) {
     throw new Error('OPENAI_API_KEY não configurada no .env');
   }
 
-  // Prompt para gerar apenas em português
+  const tonsDeVoz = [
+    {
+      nome: 'Defensor do Consumidor',
+      foco: 'Custo-Benefício',
+      angulo: 'Isso vale o seu dinheiro?',
+      abordagem: 'Analisa se a notícia é apenas marketing ou se realmente traz vantagem financeira ou prática para o usuário final.',
+      expressoesChave: ['Investimento', 'durabilidade', 'vale a pena esperar', 'bolso do brasileiro']
+    },
+    {
+      nome: 'Analista de Tendências',
+      foco: 'Geopolítica/Mercado',
+      angulo: 'O que isso muda no tabuleiro global?',
+      abordagem: 'Conecta a notícia com movimentos de mercado, guerras comerciais e o impacto na indústria a longo prazo.',
+      expressoesChave: ['Dominância de mercado', 'estratégia agressiva', 'mudança de paradigma', 'setor industrial']
+    },
+    {
+      nome: 'Geek Técnico',
+      foco: 'Especificações',
+      angulo: 'O que tem debaixo do capô?',
+      abordagem: 'Ignora o texto comercial e foca em processadores, eficiência de baterias, arquitetura de software e benchmarks.',
+      expressoesChave: ['Desempenho bruto', 'arquitetura', 'eficiência energética', 'latência', 'hardware']
+    },
+    {
+      nome: 'Observador Sustentável',
+      foco: 'Ética e ESG',
+      angulo: 'Qual o impacto para o planeta?',
+      abordagem: 'Analisa a pegada de carbono, o uso de materiais recicláveis, a ética de trabalho da empresa ou o impacto cultural daquela música/evento.',
+      expressoesChave: ['Sustentabilidade', 'pegada ecológica', 'ética corporativa', 'consciência']
+    },
+    {
+      nome: 'Veterano Nostálgico',
+      foco: 'Histórico/Comparação',
+      angulo: 'Como era antes e como chegamos aqui?',
+      abordagem: 'Relembra modelos antigos de celulares, carros clássicos ou a evolução de um gênero musical para contextualizar a notícia atual.',
+      expressoesChave: ['Diferente do que víamos nos anos 90', 'evolução histórica', 'legado', 'raízes']
+    },
+    {
+      nome: 'Educador/Professor',
+      foco: 'Didática',
+      angulo: 'Entenda de uma vez por todas',
+      abordagem: 'Explica termos técnicos (o que é uma bateria de lâmina? o que é IA generativa?) enquanto reporta a notícia.',
+      expressoesChave: ['Em termos simples', 'para você entender', 'basicamente', 'na prática']
+    }
+  ]
+
+  const tomSelecionado = tonsDeVoz[Math.floor(Math.random() * tonsDeVoz.length)];
+
+
+
   const prompt = `
-PAUTA:
-Assunto: ${assunto}
-Resumo: ${resumo}
+  PAUTA:
+  Assunto: ${assunto}
+  Resumo: ${resumo}
 
-CONTEÚDO DAS FONTES:
-${conteudos.map((c, i) => `\n--- Fonte ${i + 1} ---\n${c.substring(0, 3000)}\n`).join('\n')}
+  CONTEÚDO DAS FONTES:
+  ${conteudos.map((c, i) => `\n--- Fonte ${i + 1} ---\n${c.substring(0, 3000)}\n`).join('\n')}
 
-# PERSONA
-Você é um redator profissional de notícias sobre música eletrônica. Atue como um Jornalista Sênior e Especialista no assunto da pauta. Seu objetivo não é apenas relatar, mas analisar e contextualizar a informação para o leitor.
+  # PERSONA
+  Você é um Jornalista Investigativo Sênior com 20 anos de experiência. 
 
-# TAREFA
-Produza uma reportagem profunda e original em português (PT-BR) baseada na pauta fornecida.
+  # PERFIL EDITORIAL DESTA MATÉRIA
+  Para este artigo, você deve assumir o papel de **${tomSelecionado.nome}**.
+  - **Foco Principal:** ${tomSelecionado.foco}
+  - **Ângulo de Escrita:** ${tomSelecionado.angulo}
+  - **Abordagem:** ${tomSelecionado.abordagem}
+  - **Vocabulário Desejado:** Sempre que natural, utilize termos e conceitos como: ${tomSelecionado.expressoesChave.join(', ')}.
 
-# DIRETRIZES DE CONTEÚDO (Para evitar "Conteúdo Raso"):
-1. ANALISE O IMPACTO: Não apenas diga "o quê", explique "por que isso importa" e "quem é afetado".
-2. CONTEXTO HISTÓRICO: Adicione um parágrafo sobre o que aconteceu antes ou como chegamos aqui.
-3. ESTRUTURA RICA: Use obrigatoriamente subtítulos (H2, H3) que dividam o texto em: O Fato, Análise de Especialista, Impacto no Setor e Perspectivas Futuras.
-4. TAMANHO: O artigo deve ter entre 600 e 1200 palavras (mais densidade).
-5. LINGUAGEM: Evite clichês de IA (como "no mundo de hoje", "em constante evolução"). Use um tom direto e autoritário.
-6. EXPANSÃO DE CONHECIMENTO: Use sua base de dados para adicionar pelo menos 2 fatos contextuais que NÃO estão na pauta original (Ex.: algo sobre a origem ou curiosidade sobre assunto principal da matéria.
-7. SAIBA MAIS: Procure finalizar o artigo com um Bloco de "Saiba Mais", indicando links para sites oficiais ou relevantes sobre o assunto abordado.
-8. TOM DE VOZ: Jornalismo investigativo/executivo. Evite adjetivos genéricos como "incrível" ou "fantástico". Use termos técnicos.
+  # TAREFA
+  Produza uma reportagem profunda e original em português (PT-BR) baseada na pauta fornecida.
 
-FORMATO DA NOTÍCIA:
-- Título chamativo e profissional
-- Chamada (subtítulo) de 1-2 frases
-- Conteúdo completo em HTML (use tags <p>, <h2>, <strong>, <em>, etc.)
+  # DIRETRIZES DE CONTEÚDO (Foco em E-E-A-T):
+  1. PRESERVAÇÃO DE FORMATO: Se a pauta original for uma lista (ex: "9 celulares", "5 dicas"), você DEVE manter esse formato, detalhando cada item com informações técnicas e análises que não estão no texto original.
+  2. SUBTÍTULOS CRIATIVOS: Proibido usar "O Fato", "Análise" ou "Conclusão". Crie subtítulos jornalísticos chamativos que resumam o parágrafo (Ex: em vez de "Impacto", use "O tremor de terra no mercado de elétricos").
+  3. INTEGRAÇÃO DE CONHECIMENTO: Insira o contexto histórico e as curiosidades de forma fluida no meio do texto, não como um bloco isolado.
+  4. ANÁLISE CRÍTICA: Imagine as consequências práticas. Se a BYD passou a Tesla, o que isso significa para o preço dos carros no Brasil? Se novos celulares virão, o que o usuário deve fazer com o modelo atual?
+  5. TAMANHO E DENSIDADE: Mínimo 700 palavras. Use parágrafos médios, negritos em termos-chave e listas de tópicos (bullet points) para quebrar o texto e melhorar a leitura.
+  6. EVITE IA-ISMS: Não use "Em suma", "No cenário atual", "É importante notar", "Além disso". Seja direto e autoritário.
 
-FORMATO DE RESPOSTA (JSON):
-{
-  "titulo": "Título em português",
-  "chamada": "Subtítulo em português",
-  "conteudo": "<p>Conteúdo completo em HTML...</p>"
-}
+  # REGRAS PARA O BLOCO "SAIBA MAIS":
+  - NÃO inclua o link da pauta original (referência).
+  - Procure indicar sites de autoridade governamental (.gov), educacional (.edu) ou outros grandes portais que sejam reconhecidos por escreverem sobre o tema da reportagem (Ex.: se o assunto for celulares, recomende sites como tudocelular.com, se o assunto for carros, inclua a quatrorodas.abril.com.br).
+  - Nunca recomende sites em inglês ou outro idioma que não seja o português do Brasil.
+  - Coloque o título do site (que seja clicável) e uma breve descrição do que o leitor encontrará lá.
 
-Retorne APENAS o JSON, sem texto adicional.`;
+  # FORMATO DE SAÍDA (HTML):
+  - Use <h2> e <h3> para hierarquia.
+  - Use <strong> para destacar conceitos importantes.
+  - Use <ul> e <li> para listas técnicas.
+
+  FORMATO DE RESPOSTA (JSON):
+  {
+    "titulo": "Título em português",
+    "chamada": "Subtítulo em português",
+    "conteudo": "<p>Conteúdo completo em HTML...</p>"
+  }
+
+  Retorne APENAS o JSON, sem texto adicional.`;
 
   return new Promise((resolve, reject) => {
     const postData = JSON.stringify({
@@ -460,15 +519,6 @@ Retorne APENAS o JSON, sem texto adicional.`;
   });
 }
 
-/**
- * Gera traduções de um post existente para os idiomas faltantes
- * @param {Object} params - Parâmetros
- * @param {string} params.titulo - Título do post original
- * @param {string} params.chamada - Chamada do post original
- * @param {string} params.conteudo - Conteúdo HTML do post original
- * @param {string} params.idiomaOriginal - Idioma do post ('pt', 'en' ou 'es')
- * @returns {Promise<Object>} - JSON com traduções geradas {idioma: {titulo, chamada, conteudo}}
- */
 
 /**
  * Extrai itens de feed (notícias) de uma página de listagem usando IA
@@ -479,7 +529,7 @@ Retorne APENAS o JSON, sem texto adicional.`;
  * @param {number} params.limite - Limite de notícias a extrair (padrão: 10)
  * @returns {Promise<Array>} - Array de itens do feed [{titulo, url, chamada?, imagemUrl?, dataPublicacao?}]
  */
-export async function extractFeedItemsWithAI({ fonteUrl, fonteTitulo, conteudoJina, limite = 10 }) {
+export async function extractFeedItemsWithAI({ fonteUrl, fonteTitulo, conteudoJina, limite = 20 }) {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
