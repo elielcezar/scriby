@@ -132,7 +132,7 @@ export async function generateNewsWithAI({ assunto, resumo, conteudos }) {
   - **Vocabulário Desejado:** Sempre que natural, utilize termos e conceitos como: ${tomSelecionado.expressoesChave.join(', ')}.
 
   # TAREFA
-  Produza uma reportagem profunda e original em português (PT-BR) baseada na pauta fornecida.
+  Produza uma reportagem profunda e original SEMPRE em português (PT-BR) baseada na pauta fornecida, independente do idioma original da pauta.
 
   # DIRETRIZES DE CONTEÚDO (Foco em E-E-A-T):
   1. PRESERVAÇÃO DE FORMATO: Se a pauta original for uma lista (ex: "9 celulares", "5 dicas"), você DEVE manter esse formato, detalhando cada item com informações técnicas e análises que não estão no texto original.
