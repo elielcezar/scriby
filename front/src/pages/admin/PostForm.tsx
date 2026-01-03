@@ -71,6 +71,7 @@ export default function PostForm() {
   });
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isGeneratingPost, setIsGeneratingPost] = useState(false);
   const [showEditor, setShowEditor] = useState(isEdit);
 
   // Persistir chat na sessão
@@ -173,6 +174,60 @@ export default function PostForm() {
       .trim();
   };
 
+  // Função auxiliar para detectar e extrair JSON de post da resposta da IA
+  const extractPostDataFromResponse = (response: string): { hasPost: boolean; data?: Partial<PostFormData>; cleanMessage?: string } => {
+    // Tentar encontrar JSON na resposta (pode estar em blocos de código ou direto)
+    const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
+    const jsonMatch = response.match(jsonRegex);
+    
+    if (jsonMatch) {
+      try {
+        const parsedData = JSON.parse(jsonMatch[1]);
+        // Verificar se contém campos de post
+        if (parsedData.titulo || parsedData.conteudo) {
+          return {
+            hasPost: true,
+            data: {
+              titulo: parsedData.titulo || '',
+              chamada: parsedData.chamada || '',
+              conteudo: parsedData.conteudo || '',
+              urlAmigavel: parsedData.titulo ? generateSlug(parsedData.titulo) : '',
+            },
+            cleanMessage: response.replace(jsonRegex, '').trim(),
+          };
+        }
+      } catch (e) {
+        console.error('Erro ao parsear JSON da IA', e);
+        // Se falhar ao parsear, retornar como mensagem normal
+        return { hasPost: false };
+      }
+    }
+    
+    // Tentar detectar JSON direto (sem blocos de código)
+    try {
+      const directJsonMatch = response.match(/\{[\s\S]*"titulo"[\s\S]*\}/);
+      if (directJsonMatch) {
+        const parsedData = JSON.parse(directJsonMatch[0]);
+        if (parsedData.titulo || parsedData.conteudo) {
+          return {
+            hasPost: true,
+            data: {
+              titulo: parsedData.titulo || '',
+              chamada: parsedData.chamada || '',
+              conteudo: parsedData.conteudo || '',
+              urlAmigavel: parsedData.titulo ? generateSlug(parsedData.titulo) : '',
+            },
+            cleanMessage: response.replace(directJsonMatch[0], '').trim(),
+          };
+        }
+      }
+    } catch (e) {
+      // Ignorar erros de parsing
+    }
+    
+    return { hasPost: false };
+  };
+
   const handleTituloChange = (novoTitulo: string) => {
     setFormData(prev => ({
       ...prev,
@@ -193,11 +248,12 @@ export default function PostForm() {
   // Lógica de Chat
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!chatInput.trim() || isChatLoading) return;
+    if (!chatInput.trim() || isChatLoading || isGeneratingPost) return;
 
     const userMessage: ChatMessage = { role: 'user', content: chatInput };
     const newMessages = [...chatMessages, userMessage];
     
+    // Adicionar mensagem do usuário ao chat imediatamente
     setChatMessages(newMessages);
     setChatInput('');
     setIsChatLoading(true);
@@ -210,42 +266,65 @@ export default function PostForm() {
 
       const aiResponse = await chatService.sendMessage(newMessages, urlContext);
       
-      const assistantMessage: ChatMessage = { role: 'assistant', content: aiResponse };
+      // Verificar se a resposta contém JSON de post ANTES de adicionar ao chat
+      const postData = extractPostDataFromResponse(aiResponse);
+
+      if (postData.hasPost && postData.data) {
+        // Modo de geração de post - processar silenciosamente
+        setIsChatLoading(false);
+        setIsGeneratingPost(true);
+        
+        // Mostrar toast de geração
+        toast({
+          title: 'Gerando seu post...',
+          description: 'Isso pode levar alguns segundos. Aguarde.',
+          duration: 3000,
+        });
+
+        // Preencher formulário silenciosamente
+        setFormData(prev => ({
+          ...prev,
+          titulo: postData.data!.titulo || prev.titulo,
+          chamada: postData.data!.chamada || prev.chamada,
+          conteudo: postData.data!.conteudo || prev.conteudo,
+          urlAmigavel: postData.data!.urlAmigavel || prev.urlAmigavel,
+        }));
+
+        // Aguardar um momento para feedback visual e então redirecionar
+        setTimeout(() => {
+          setIsGeneratingPost(false);
+          setShowEditor(true);
+          toast({
+            title: 'Post gerado com sucesso!',
+            description: 'Revise e publique quando estiver pronto.',
+            duration: 4000,
+          });
+        }, 1000);
+
+        // NÃO adicionar mensagem ao chat quando for geração de post
+        return;
+      }
+
+      // Se não for geração de post, adicionar mensagem normalmente ao chat
+      const assistantMessage: ChatMessage = { 
+        role: 'assistant', 
+        content: aiResponse 
+      };
       setChatMessages(prev => [...prev, assistantMessage]);
 
-      // Tentar encontrar JSON na resposta
-      const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/);
-      if (jsonMatch) {
-        try {
-          const parsedData = JSON.parse(jsonMatch[1]);
-          if (parsedData.titulo || parsedData.conteudo) {
-            setFormData(prev => ({
-              ...prev,
-              titulo: parsedData.titulo || prev.titulo,
-              chamada: parsedData.chamada || prev.chamada,
-              conteudo: parsedData.conteudo || prev.conteudo,
-              urlAmigavel: parsedData.titulo ? generateSlug(parsedData.titulo) : prev.urlAmigavel,
-            }));
-            
-            toast({
-              title: 'Post estruturado!',
-              description: 'A IA gerou uma versão do post. Você já pode revisar no editor.',
-              action: (
-                <Button variant="outline" size="sm" onClick={() => setShowEditor(true)}>
-                  Ver Editor
-                </Button>
-              ),
-            });
-          }
-        } catch (e) {
-          console.error('Erro ao parsear JSON da IA', e);
-        }
-      }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // Em caso de erro, adicionar mensagem de erro ao chat para contexto
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      const chatErrorMessage: ChatMessage = {
+        role: 'assistant',
+        content: `Desculpe, ocorreu um erro: ${errorMessage}. Por favor, tente novamente.`
+      };
+      setChatMessages(prev => [...prev, chatErrorMessage]);
+      
       toast({
         variant: 'destructive',
         title: 'Erro na conversa',
-        description: error.message,
+        description: errorMessage,
       });
     } finally {
       setIsChatLoading(false);
@@ -281,11 +360,12 @@ export default function PostForm() {
       } else {
         createMutation.mutate(dataToSubmit);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao salvar';
       toast({
         variant: 'destructive',
         title: 'Erro ao salvar',
-        description: error.message,
+        description: errorMessage,
       });
     }
   };
@@ -314,7 +394,7 @@ export default function PostForm() {
     },
   });
 
-  const handleChange = (field: keyof PostFormData, value: any) => {
+  const handleChange = (field: keyof PostFormData, value: PostFormData[keyof PostFormData]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -360,7 +440,26 @@ export default function PostForm() {
   // Se estiver no modo Chat (Criação)
   if (!showEditor && !isEdit) {
     return (
-      <div className="flex flex-col h-[calc(100vh-12rem)] space-y-6">
+      <div className="flex flex-col h-[calc(100vh-12rem)] space-y-6 relative">
+        {/* Overlay de geração de post */}
+        {isGeneratingPost && (
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg">
+            <Card className="max-w-md w-full mx-4">
+              <CardContent className="pt-6 pb-6">
+                <div className="flex flex-col items-center gap-4 text-center">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                  <div>
+                    <h3 className="text-lg font-semibold">Gerando seu post...</h3>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Isso pode levar alguns segundos. Você será redirecionado para o editor em instantes.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => navigate('/admin/posts')}>
@@ -372,10 +471,10 @@ export default function PostForm() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="ghost" size="icon" onClick={handleClearChat} title="Limpar Chat">
+            <Button variant="ghost" size="icon" onClick={handleClearChat} title="Limpar Chat" disabled={isGeneratingPost}>
               <RotateCcw className="h-4 w-4" />
             </Button>
-            <Button variant="outline" onClick={() => setShowEditor(true)} className="gap-2">
+            <Button variant="outline" onClick={() => setShowEditor(true)} className="gap-2" disabled={isGeneratingPost}>
               <PencilLine className="h-4 w-4" />
               Pular para Editor
             </Button>
@@ -401,7 +500,7 @@ export default function PostForm() {
                   </div>
                 </div>
               ))}
-              {isChatLoading && (
+              {(isChatLoading || isGeneratingPost) && (
                 <div className="flex justify-start">
                   <div className="flex gap-3 max-w-[80%]">
                     <div className="mt-1 p-2 rounded-full bg-muted h-8 w-8 flex items-center justify-center">
@@ -409,7 +508,9 @@ export default function PostForm() {
                     </div>
                     <div className="p-3 rounded-lg bg-muted flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-xs animate-pulse">Pensando...</span>
+                      <span className="text-xs animate-pulse">
+                        {isGeneratingPost ? 'Gerando post...' : 'Pensando...'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -424,14 +525,14 @@ export default function PostForm() {
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder="Ex: Escreva sobre o novo álbum do Tiësto..."
                 className="flex-1"
-                disabled={isChatLoading}
+                disabled={isChatLoading || isGeneratingPost}
               />
-              <Button type="submit" disabled={isChatLoading || !chatInput.trim()}>
-                {isChatLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              <Button type="submit" disabled={isChatLoading || isGeneratingPost || !chatInput.trim()}>
+                {(isChatLoading || isGeneratingPost) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </form>
             <p className="text-[10px] text-center text-muted-foreground mt-2">
-              A IA pode gerar posts estruturados. Você poderá revisá-los a qualquer momento clicando em "Ver Editor".
+              A IA pode gerar posts estruturados. Você será redirecionado automaticamente para o editor quando o post estiver pronto.
             </p>
           </div>
         </Card>
@@ -541,7 +642,7 @@ export default function PostForm() {
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="status">Status *</Label>
-                <Select value={formData.status} onValueChange={(v: any) => handleChange('status', v)} disabled={isLoading}>
+                <Select value={formData.status} onValueChange={(v: string) => handleChange('status', v)} disabled={isLoading}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="RASCUNHO">Rascunho</SelectItem>
@@ -556,7 +657,7 @@ export default function PostForm() {
               <div className="space-y-2">
                 <Label>Destaque</Label>
                 <div className="flex items-center space-x-2 pt-2">
-                  <Checkbox id="destaque" checked={formData.destaque} onCheckedChange={(c) => handleChange('destaque', c)} disabled={isLoading} />
+                  <Checkbox id="destaque" checked={formData.destaque} onCheckedChange={(c) => handleChange('destaque', c === true)} disabled={isLoading} />
                   <label htmlFor="destaque" className="text-sm font-medium">Marcar destaque</label>
                 </div>
               </div>
