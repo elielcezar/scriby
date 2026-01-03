@@ -66,7 +66,7 @@ export default function Feed() {
     queryFn: () => feedService.getFontes(),
   });
 
-  // Função para escanear todas as fontes sequencialmente (orquestração no frontend)
+  // Função para escanear todas as fontes em paralelo (Lotes de 3)
   const handleScanAllSources = async () => {
     if (!fontes || fontes.length === 0) {
       toast({
@@ -83,33 +83,48 @@ export default function Feed() {
     let processadas = 0;
     let novosItensTotal = 0;
     let erros = 0;
+    const CONCURRENCY_LIMIT = 3;
 
     try {
-      for (let i = 0; i < fontes.length; i++) {
-        const fonte = fontes[i];
-        setScanStatus(`Processando: ${fonte.titulo} (${i + 1}/${fontes.length})...`);
+      // Processar em lotes (chunks) de 3
+      for (let i = 0; i < fontes.length; i += CONCURRENCY_LIMIT) {
+        const chunk = fontes.slice(i, i + CONCURRENCY_LIMIT);
         
-        try {
-          // Busca individual por fonte
-          const response = await feedService.buscar(fonte.id);
-          
-          if (response.stats) {
-            novosItensTotal += response.stats.itensNovos;
-          }
-          
-          // Atualiza a lista na tela imediatamente se houver novos itens
-          if (response.stats && response.stats.itensNovos > 0) {
-            queryClient.invalidateQueries({ queryKey: ['feed'] });
-            queryClient.invalidateQueries({ queryKey: ['feed-fontes'] });
-          }
+        // Atualizar status visual
+        const titulos = chunk.map(f => f.titulo).join(', ');
+        setScanStatus(`Processando lote ${Math.floor(i / CONCURRENCY_LIMIT) + 1}: ${titulos}...`);
 
-        } catch (error) {
-          console.error(`Erro ao processar fonte ${fonte.titulo}:`, error);
-          erros++;
-        }
+        // Executar lote em paralelo
+        const results = await Promise.allSettled(
+          chunk.map(async (fonte) => {
+            try {
+              return await feedService.buscar(fonte.id);
+            } catch (error) {
+              console.error(`Erro ao processar fonte ${fonte.titulo}:`, error);
+              throw error;
+            }
+          })
+        );
 
-        processadas++;
+        // Processar resultados do lote
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            const response = result.value;
+            if (response.stats) {
+              novosItensTotal += response.stats.itensNovos;
+            }
+          } else {
+            erros++;
+          }
+          processadas++;
+        });
+
+        // Atualizar progresso e lista
         setScanProgress(Math.round((processadas / fontes.length) * 100));
+        
+        // Invalidar queries para atualizar a tela a cada lote completado
+        queryClient.invalidateQueries({ queryKey: ['feed'] });
+        queryClient.invalidateQueries({ queryKey: ['feed-fontes'] });
       }
 
       toast({
@@ -118,6 +133,7 @@ export default function Feed() {
       });
 
     } catch (error) {
+      console.error('Erro fatal no scan:', error);
       toast({
         variant: 'destructive',
         title: 'Erro inesperado',
@@ -127,7 +143,7 @@ export default function Feed() {
       setIsScanning(false);
       setScanStatus('');
       setScanProgress(0);
-      // Atualização final para garantir consistência
+      // Atualização final garantida
       queryClient.invalidateQueries({ queryKey: ['feed'] });
       queryClient.invalidateQueries({ queryKey: ['feed-fontes'] });
     }

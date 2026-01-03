@@ -10,6 +10,7 @@
     "migrate:deploy": "prisma migrate deploy",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
+    "feed:update": "node scripts/update-feed.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
