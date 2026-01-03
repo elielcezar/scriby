@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, X, Upload, Sparkles, Send, Bot, User, PencilLine } from 'lucide-react';
+import { ArrowLeft, Loader2, X, Upload, Sparkles, Send, Bot, User, PencilLine, RotateCcw } from 'lucide-react';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Checkbox } from '@/components/ui/checkbox';
 import { TagInput } from '@/components/ui/tag-input';
@@ -55,12 +55,29 @@ export default function PostForm() {
   const [tagSearchQuery, setTagSearchQuery] = useState('');
 
   // Estado para Chat
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', content: 'Olá! Sou seu assistente editorial. Cole um link ou descreva o tema da notícia que deseja criar hoje.' }
-  ]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    const saved = sessionStorage.getItem('scriby_chat_session');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse chat session', e);
+      }
+    }
+    return [
+      { role: 'assistant', content: 'Olá! Sou seu assistente editorial. Cole um link ou descreva o tema da notícia que deseja criar hoje.' }
+    ];
+  });
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [showEditor, setShowEditor] = useState(isEdit);
+
+  // Persistir chat na sessão
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      sessionStorage.setItem('scriby_chat_session', JSON.stringify(chatMessages));
+    }
+  }, [chatMessages]);
 
   // Buscar categorias
   const { data: categorias } = useQuery({
@@ -161,6 +178,15 @@ export default function PostForm() {
       titulo: novoTitulo,
       urlAmigavel: generateSlug(novoTitulo),
     }));
+  };
+
+  const handleClearChat = () => {
+    if (window.confirm('Tem certeza que deseja limpar o histórico do chat?')) {
+      const initialMsg: ChatMessage = { role: 'assistant', content: 'Olá! Sou seu assistente editorial. Cole um link ou descreva o tema da notícia que deseja criar hoje.' };
+      setChatMessages([initialMsg]);
+      sessionStorage.removeItem('scriby_chat_session');
+      toast({ title: 'Chat limpo' });
+    }
   };
 
   // Lógica de Chat
@@ -344,10 +370,15 @@ export default function PostForm() {
               <p className="text-muted-foreground">Converse com a IA para estruturar sua notícia</p>
             </div>
           </div>
-          <Button variant="outline" onClick={() => setShowEditor(true)} className="gap-2">
-            <PencilLine className="h-4 w-4" />
-            Pular para Editor
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="icon" onClick={handleClearChat} title="Limpar Chat">
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" onClick={() => setShowEditor(true)} className="gap-2">
+              <PencilLine className="h-4 w-4" />
+              Pular para Editor
+            </Button>
+          </div>
         </div>
 
         <Card className="flex-1 flex flex-col overflow-hidden">
