@@ -14,18 +14,29 @@ const router = express.Router();
 router.post('/feed/buscar', authenticateToken, async (req, res, next) => {
     try {
         console.log('🔍 Iniciando busca de feed items...');
+        
+        const { fonteId } = req.body;
+        const where = {
+            userId: req.user.id
+        };
 
-        // Buscar todas as fontes cadastradas do usuário logado
+        // Se fonteId for fornecido, filtrar apenas essa fonte
+        if (fonteId) {
+            where.id = parseInt(fonteId);
+            console.log(`🎯 Buscando apenas fonte ID: ${fonteId}`);
+        }
+
+        // Buscar fontes (todas ou específica)
         const fontes = await prisma.fonte.findMany({
-            where: {
-                userId: req.user.id
-            },
+            where,
             orderBy: { titulo: 'asc' }
         });
 
         if (fontes.length === 0) {
             return res.status(400).json({ 
-                error: 'Nenhuma fonte cadastrada. Cadastre fontes antes de buscar feed.' 
+                error: fonteId 
+                    ? 'Fonte não encontrada ou não pertence a você.' 
+                    : 'Nenhuma fonte cadastrada. Cadastre fontes antes de buscar feed.' 
             });
         }
 

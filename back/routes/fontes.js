@@ -4,8 +4,80 @@ import { authenticateToken } from '../middleware/auth.js';
 import { authenticateJwtOrApiKey } from '../middleware/apiKeyAuth.js';
 import { validate, fonteCreateSchema, fonteUpdateSchema } from '../middleware/validation.js';
 import { NotFoundError } from '../utils/errors.js';
+import { fetchContentWithJina, extractFeedItemsWithAI } from '../services/aiService.js';
 
 const router = express.Router();
+
+/**
+ * Testar fonte antes de salvar (protegido por JWT)
+ * POST /api/fontes/testar
+ */
+router.post('/fontes/testar', authenticateToken, async (req, res, next) => {
+    try {
+        const { url, titulo } = req.body;
+        console.log(`🧪 Testando fonte: ${titulo || url}`);
+
+        if (!url) {
+            return res.status(400).json({ error: 'URL é obrigatória para o teste.' });
+        }
+
+        // 1. Tentar buscar conteúdo
+        console.log('   📡 Conectando ao site...');
+        let conteudo;
+        try {
+            conteudo = await fetchContentWithJina(url);
+        } catch (error) {
+            console.error('   ❌ Falha na conexão:', error.message);
+            return res.status(400).json({ 
+                error: 'Não foi possível acessar a URL. O site pode estar offline ou bloqueando acesso.',
+                details: error.message
+            });
+        }
+
+        if (!conteudo || conteudo.length < 100) {
+            return res.status(400).json({ 
+                error: 'Conteúdo retornado é muito curto ou vazio. Verifique a URL.' 
+            });
+        }
+
+        // 2. Tentar extrair notícias
+        console.log('   🤖 Extraindo notícias...');
+        try {
+            const items = await extractFeedItemsWithAI({
+                fonteUrl: url,
+                fonteTitulo: titulo || 'Teste',
+                conteudoJina: conteudo,
+                limite: 5 // Limite menor para teste rápido
+            });
+
+            if (items.length === 0) {
+                return res.status(200).json({
+                    success: false,
+                    message: 'O site foi acessado, mas a IA não encontrou nenhuma notícia clara na página.',
+                    items: []
+                });
+            }
+
+            console.log(`   ✅ Sucesso! ${items.length} itens encontrados.`);
+            return res.status(200).json({
+                success: true,
+                message: `Sucesso! Encontramos ${items.length} notícias nesta página.`,
+                items: items
+            });
+
+        } catch (error) {
+            console.error('   ❌ Falha na extração:', error.message);
+            return res.status(400).json({ 
+                error: 'Falha ao analisar o conteúdo da página.',
+                details: error.message 
+            });
+        }
+
+    } catch (error) {
+        console.error('❌ Erro inesperado no teste:', error);
+        next(error);
+    }
+});
 
 /**
  * Criar fonte (protegido por JWT)

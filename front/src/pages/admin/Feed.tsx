@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import { 
   ExternalLink, 
   Trash2, 
@@ -42,6 +43,12 @@ export default function Feed() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [convertingItemId, setConvertingItemId] = useState<number | null>(null);
+  
+  // Estados para o scan progressivo
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [scanStatus, setScanStatus] = useState('');
+
   const selectAllCheckboxRef = useRef<HTMLButtonElement & { indeterminate?: boolean }>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -59,7 +66,74 @@ export default function Feed() {
     queryFn: () => feedService.getFontes(),
   });
 
-  // Mutation para buscar novos itens
+  // Função para escanear todas as fontes sequencialmente (orquestração no frontend)
+  const handleScanAllSources = async () => {
+    if (!fontes || fontes.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Nenhuma fonte encontrada',
+        description: 'Cadastre fontes antes de buscar notícias.',
+      });
+      return;
+    }
+
+    setIsScanning(true);
+    setScanProgress(0);
+    
+    let processadas = 0;
+    let novosItensTotal = 0;
+    let erros = 0;
+
+    try {
+      for (let i = 0; i < fontes.length; i++) {
+        const fonte = fontes[i];
+        setScanStatus(`Processando: ${fonte.titulo} (${i + 1}/${fontes.length})...`);
+        
+        try {
+          // Busca individual por fonte
+          const response = await feedService.buscar(fonte.id);
+          
+          if (response.stats) {
+            novosItensTotal += response.stats.itensNovos;
+          }
+          
+          // Atualiza a lista na tela imediatamente se houver novos itens
+          if (response.stats && response.stats.itensNovos > 0) {
+            queryClient.invalidateQueries({ queryKey: ['feed'] });
+            queryClient.invalidateQueries({ queryKey: ['feed-fontes'] });
+          }
+
+        } catch (error) {
+          console.error(`Erro ao processar fonte ${fonte.titulo}:`, error);
+          erros++;
+        }
+
+        processadas++;
+        setScanProgress(Math.round((processadas / fontes.length) * 100));
+      }
+
+      toast({
+        title: 'Busca concluída!',
+        description: `${novosItensTotal} novas notícias encontradas. ${erros > 0 ? `${erros} fontes com erro.` : ''}`,
+      });
+
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro inesperado',
+        description: 'Ocorreu um erro ao orquestrar a busca.',
+      });
+    } finally {
+      setIsScanning(false);
+      setScanStatus('');
+      setScanProgress(0);
+      // Atualização final para garantir consistência
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['feed-fontes'] });
+    }
+  };
+
+  // Mutation para buscar novos itens (mantido para compatibilidade, mas não usado no botão principal)
   const buscarFeed = useMutation({
     mutationFn: () => feedService.buscar(),
     onSuccess: (data) => {
@@ -278,36 +352,49 @@ export default function Feed() {
       {/* Card de Busca */}
       <Card className="border-primary/50 bg-gradient-to-r from-primary/5 to-primary/10">
         <CardContent className="py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-primary/10">
-                <Rss className="h-5 w-5 text-primary" />
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-primary/10">
+                  <Rss className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Atualizar Feed</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Buscar novas notícias de todas as {fontes?.length || 0} fontes cadastradas
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold">Atualizar Feed</h3>
-                <p className="text-sm text-muted-foreground">
-                  Buscar novas notícias de todas as {fontes?.length || 0} fontes cadastradas
-                </p>
-              </div>
+              <Button 
+                size="lg"
+                onClick={handleScanAllSources}
+                disabled={isScanning || buscarFeed.isPending}
+                className="gap-2"
+              >
+                {isScanning ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Buscando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    Buscar Notícias
+                  </>
+                )}
+              </Button>
             </div>
-            <Button 
-              size="lg"
-              onClick={() => buscarFeed.mutate()}
-              disabled={buscarFeed.isPending}
-              className="gap-2"
-            >
-              {buscarFeed.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Buscando...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-4 w-4" />
-                  Buscar Notícias
-                </>
-              )}
-            </Button>
+
+            {/* Barra de Progresso */}
+            {isScanning && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{scanStatus}</span>
+                  <span>{scanProgress}%</span>
+                </div>
+                <Progress value={scanProgress} className="h-2" />
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

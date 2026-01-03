@@ -60,5 +60,17 @@ export const fontesService = {
       throw new Error(handleApiError(error));
     }
   },
+
+  /**
+   * Testar conexão da fonte
+   */
+  async testar(data: FonteFormData): Promise<{ success: boolean; message: string; items?: any[] }> {
+    try {
+      const response = await apiClient.post<{ success: boolean; message: string; items?: any[] }>('/fontes/testar', data);
+      return response.data;
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
 };
 

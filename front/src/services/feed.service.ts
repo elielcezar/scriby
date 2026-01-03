@@ -47,11 +47,11 @@ export const feedService = {
   },
 
   /**
-   * Buscar novos itens de feed de todas as fontes
+   * Buscar novos itens de feed (de todas as fontes ou de uma específica)
    */
-  async buscar(): Promise<BuscarFeedResponse> {
+  async buscar(fonteId?: number): Promise<BuscarFeedResponse> {
     try {
-      const response = await apiClient.post<BuscarFeedResponse>('/feed/buscar');
+      const response = await apiClient.post<BuscarFeedResponse>('/feed/buscar', { fonteId });
       return response.data;
     } catch (error) {
       throw new Error(handleApiError(error));

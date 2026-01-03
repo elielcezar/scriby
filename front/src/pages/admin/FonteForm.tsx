@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle2, AlertCircle, Play } from 'lucide-react';
 
 export default function FonteForm() {
   const { id } = useParams();
@@ -20,6 +21,17 @@ export default function FonteForm() {
   const [formData, setFormData] = useState<FonteFormData>({
     titulo: '',
     url: '',
+  });
+
+  const [testResult, setTestResult] = useState<{
+    tested: boolean;
+    success: boolean;
+    message: string;
+    itemCount?: number;
+  }>({
+    tested: false,
+    success: false,
+    message: '',
   });
 
   // Buscar fonte se for edição
@@ -79,6 +91,44 @@ export default function FonteForm() {
     },
   });
 
+  // Mutation para testar
+  const testMutation = useMutation({
+    mutationFn: (data: FonteFormData) => fontesService.testar(data),
+    onSuccess: (data) => {
+      setTestResult({
+        tested: true,
+        success: data.success,
+        message: data.message,
+        itemCount: data.items?.length || 0
+      });
+      
+      if (data.success) {
+        toast({
+          title: 'Teste bem-sucedido!',
+          description: data.message,
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Aviso',
+          description: data.message,
+        });
+      }
+    },
+    onError: (error: Error) => {
+      setTestResult({
+        tested: true,
+        success: false,
+        message: error.message
+      });
+      toast({
+        variant: 'destructive',
+        title: 'Falha no teste',
+        description: error.message,
+      });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -108,11 +158,31 @@ export default function FonteForm() {
     }
   };
 
+  const handleTestConnection = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!formData.url.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Campo obrigatório',
+        description: 'Preencha a URL antes de testar.',
+      });
+      return;
+    }
+    
+    setTestResult({ tested: false, success: false, message: '' });
+    testMutation.mutate(formData);
+  };
+
   const handleChange = (field: keyof FonteFormData, value: string | number) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    // Resetar resultado do teste ao mudar URL
+    if (field === 'url') {
+      setTestResult({ tested: false, success: false, message: '' });
+    }
   };
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
+  const isTesting = testMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -150,22 +220,55 @@ export default function FonteForm() {
 
             <div className="space-y-2">
               <Label htmlFor="url">URL *</Label>
-              <Input
-                id="url"
-                type="url"
-                value={formData.url}
-                onChange={(e) => handleChange('url', e.target.value)}
-                required
-                disabled={isLoading}
-                placeholder="https://exemplo.com/feed"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="url"
+                  type="url"
+                  value={formData.url}
+                  onChange={(e) => handleChange('url', e.target.value)}
+                  required
+                  disabled={isLoading}
+                  placeholder="https://exemplo.com/feed"
+                  className="flex-1"
+                />
+                <Button 
+                  type="button" 
+                  variant="secondary"
+                  onClick={handleTestConnection}
+                  disabled={isTesting || !formData.url}
+                >
+                  {isTesting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 mr-2" />
+                      Testar
+                    </>
+                  )}
+                </Button>
+              </div>
               <p className="text-sm text-muted-foreground">
                 URL do feed RSS, página inicial ou API da fonte de notícias
               </p>
             </div>
 
+            {/* Resultado do Teste */}
+            {testResult.tested && (
+              <Alert variant={testResult.success ? "default" : "destructive"} className={testResult.success ? "border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-400" : ""}>
+                {testResult.success ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <AlertCircle className="h-4 w-4" />
+                )}
+                <AlertTitle>{testResult.success ? "Sucesso!" : "Falha na conexão"}</AlertTitle>
+                <AlertDescription>
+                  {testResult.message}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="flex gap-4 pt-4">
-              <Button type="submit" disabled={isLoading}>
+              <Button type="submit" disabled={isLoading || isTesting}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isEdit ? 'Salvar Alterações' : 'Criar Fonte'}
               </Button>
